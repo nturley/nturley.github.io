@@ -604,7 +604,7 @@ function wirePull(pullX, pullY, offset, alpha)
         {
             o.wire.riders.forEach(function(r)
             {
-                pullRider(o, r, pullX*alpha, pullY*alpha, offset);
+                pullRider(o, r.value, pullX*alpha, pullY*alpha, offset);
             });
         });
     };
