@@ -576,16 +576,16 @@ d3.select('#viewer')
     .attr('height',VIEWER_HEIGHT);
 
 
-function pullNode(node, driver, rider, pullX, pullY, offset)
+function pullNode(node, otherPort,myPort, pullX, pullY, offset)
 {
-    if (rider.feedback==true)
+    if (myPort.feedback==true || otherPort.feedback==true)
         return;
-    var mx = globalX(driver);
-    var my = globalY(driver);
-    var rx = globalX(rider);
-    var ry = globalY(rider);
-    var dx = mx-rx-offset;
-    var dy = my-ry;
+    var mx = globalX(myPort);
+    var my = globalY(myPort);
+    var ox = globalX(otherPort);
+    var oy = globalY(otherPort);
+    var dx = ox-mx+offset;
+    var dy = oy-my;
     node.x += dx*pullX;
     node.y += dy*pullY;
 }
@@ -598,13 +598,13 @@ function wirePull(pullX, pullY, offset, alpha)
         }
         node.inputPorts.forEach(function(i)
         {
-            pullNode(node,i.wire.driver, i, pullX*alpha, pullY*alpha, offset);          
+            pullNode(node, i.wire.driver, i, pullX*alpha, pullY*alpha, -offset);
         });
         node.outputPorts.forEach(function(o)
         {
             o.wire.riders.forEach(function(r)
             {
-                pullNode(node,o, r.value, pullX*alpha, pullY*alpha, offset);
+                pullNode(node, r.value, o, pullX*alpha, pullY*alpha, offset);
             });
         });
     };
