@@ -285,44 +285,48 @@ nodes = cells.concat(inputPorts).concat(outputPorts);
 
 // At this point, only perfect matches should exist
 
-// also give each port a reference to it's parent (daddy)
+// also give each port a reference to it's parent (parentNode)
 // collect all ports driven by a net
 nets= {}
 nodes.forEach(function(n) 
 {
     var nodeName = n.key;
-    n.inputPorts.forEach(function(i)
+    for (var i in n.inputPorts)
     {
-        i.daddy = n;
-        addToDefaultDict(nets,arrayToBitstring(i.value),{'value':i});
-    });
+        var port = n.inputPorts[i];
+        port.parentNode = n;
+        addToDefaultDict(nets,arrayToBitstring(port.value),port);
+    }
 });
 // build a list of wire objects that hold references to the ports the net connects to
 wires = [];
 nodes.forEach(function(n) 
 {
     var nodeName = n.key;
-    n.outputPorts.forEach(function(i)
+    for (var i in n.outputPorts)
     {
-        i.daddy = n;
-        riders = nets[arrayToBitstring(i.value)];
-        var wire = {'driver':i,'riders':riders};
+        var port = n.outputPorts[i];
+        port.parentNode = n;
+        riders = nets[arrayToBitstring(port.value)];
+        var wire = {'driver':port,'riders':riders};
         wires.push(wire);
-        i.wire = wire;
+        port.wire = wire;
         riders.forEach(function(r)
         {
-            r.driver=i;
-            r.value.wire = wire;
+            r.driver=port;
         });
-    });
+    }
 });
-
-// tag feedback wires
 
 // find all root nodes (only inputs)
 var rootNodes = nodes.filter(function(d) {
     return d.inputPorts.length == 0;
 });
+
+var leafNodes = nodes.filter(function(d) {
+    return d.outputPorts.length == 0;
+});
+
 
 // DFS to detect cycles
 function visitDependents(n, visited)
@@ -330,15 +334,17 @@ function visitDependents(n, visited)
     visited[n.key] = true;
     n.outputPorts.forEach(function(p)
     {
-        p.wire.riders.forEach(function(r){
-            if (n.type == '$dff') {
+        p.wire.riders.forEach(function(r)
+        {
+            if (!(r.parentNode.key in visited))
+            {
+                visitDependents(r.parentNode, visited);
+            } 
+            else
+            {
+                if (n.type == '$dff')
+                {
                     r.feedback = true;
-            }
-            if (!(r.value.daddy.key in visited)) {
-                visitDependents(r.value.daddy, visited);
-            } else {
-                if (n.type == '$dff') {
-                    r.value.feedback = true;
                 }
             }
         });
@@ -349,6 +355,67 @@ rootNodes.forEach(function(n)
 {
     visitDependents(n,{});
 });
+
+nodes.forEach(function(n)
+{
+    n.inputPorts.forEach(function(i)
+    {
+        if (i.feedback)
+        {
+            n.outputPorts.push(i);
+            var newInputPort = {'parentNode':i.driver.parentNode,'driver':i};
+            var wire = {'driver':i,'riders':[newInputPort]};
+            wires.push(wire);
+            i.wire = wire;
+            n.inputPorts = n.inputPorts.filter(function(port){return port!=i;});
+            i.driver.parentNode.inputPorts.push(newInputPort);
+            i.driver.wire.riders = i.driver.wire.riders.filter(function(port){return port!=i;});
+        }
+    });
+});
+
+// we are now cycle free!
+// Do a longest path algo to assign nodes a depth
+var greatestRDepth = 0;
+function reverseDFS(node, rdepth)
+{
+    if (node.rdepth==undefined || rdepth>node.rdepth)
+    {
+        node.rdepth = rdepth;
+        if (rdepth>greatestRDepth)
+            greatestRDepth=rdepth;
+        node.inputPorts.forEach(function(p)
+        {
+            reverseDFS(p.driver.parentNode, rdepth+1);
+        });
+    }
+}
+leafNodes.forEach(function(n)
+{
+    reverseDFS(n,0);
+});
+
+function DFS(node, depth)
+{
+    if (node.depth==undefined || depth>node.depth)
+    {
+        node.depth = depth;
+        node.outputPorts.forEach(function(p)
+        {
+            p.wire.riders.forEach(function(r)
+            {
+                DFS(r.parentNode, depth+1);
+            });
+        });
+    }
+}
+rootNodes.forEach(function(n)
+{
+    DFS(n,greatestRDepth-n.rdepth);
+});
+
+
+
 //-------------------------------------
 // create SVG objects for each data object and assign them classes
 
@@ -495,39 +562,39 @@ function updateNodes()
 
 function globalX(p)
 {
-    return p.x+p.daddy.x;
+    return p.x+p.parentNode.x;
 }
 
 function globalY(p)
 {
-    return p.y+p.daddy.y-genericHeight(p.daddy)/2;
+    return p.y+p.parentNode.y-genericHeight(p.parentNode)/2;
 }
 
 function x2(d)
 {
-    if (globalX(d.driver) < globalX(d.value))
-        return (globalX(d.value) + globalX(d.driver)) / 2;
+    if (globalX(d.driver) < globalX(d))
+        return (globalX(d) + globalX(d.driver)) / 2;
     return globalX(d.driver);
 }
 
 function y2(d)
 {
-    if (globalX(d.driver) < globalX(d.value))
+    if (globalX(d.driver) < globalX(d))
         return globalY(d.driver);
-    return (globalY(d.value) + globalY(d.driver)) / 2;
+    return (globalY(d) + globalY(d.driver)) / 2;
 }
 
 function x3(d)
 {
-    if (globalX(d.driver) < globalX(d.value))
-        return (globalX(d.value) + globalX(d.driver)) / 2;
-    return globalX(d.value);
+    if (globalX(d.driver) < globalX(d))
+        return (globalX(d) + globalX(d.driver)) / 2;
+    return globalX(d);
 }
 function y3(d)
 {
-    if (globalX(d.driver) < globalX(d.value))
-        return globalY(d.value);
-    return (globalY(d.value) + globalY(d.driver)) / 2;
+    if (globalX(d.driver) < globalX(d))
+        return globalY(d);
+    return (globalY(d) + globalY(d.driver)) / 2;
 }
 
 
@@ -536,7 +603,7 @@ function updateWires()
     d3.selectAll('.wire').selectAll('.wirestart')
         .attr('x1',function(d)
             {
-                return d.driver.x + d.driver.daddy.x;
+                return d.driver.x + d.driver.parentNode.x;
             })
         .attr('y1',function(d)
             {
@@ -550,20 +617,20 @@ function updateWires()
         .attr('x2',x3)
         .attr('y2',function(d)
             {
-                if (globalX(d.driver) < globalX(d.value))
-                    return globalY(d.value);
-                return (globalY(d.value) + globalY(d.driver)) / 2;
+                if (globalX(d.driver) < globalX(d))
+                    return globalY(d);
+                return (globalY(d) + globalY(d.driver)) / 2;
             });
     d3.selectAll('.wire').selectAll('.wireend')
         .attr('x1',x3)
         .attr('y1',y3)
         .attr('x2',function(d)
             {
-                return d.value.x + d.value.daddy.x;
+                return d.x + d.parentNode.x;
             })
         .attr('y2',function(d)
             {
-                return globalY(d.value);
+                return globalY(d);
             });
 }
 
@@ -576,35 +643,44 @@ d3.select('#viewer')
     .attr('height',VIEWER_HEIGHT);
 
 
-function pullNode(node, otherPort,myPort, pullX, pullY, offset)
+function pullNodeX(otherPort, myPort, pullX, offset)
 {
-    if (myPort.feedback==true || otherPort.feedback==true)
-        return;
-    var mx = globalX(myPort);
+    
+    var targetX = offset*(myPort.parentNode.depth - otherPort.parentNode.depth);
+    var dx = otherPort.parentNode.x - myPort.parentNode.x - targetX;
+
+    if (myPort.parentNode.fixed!=true){
+        myPort.parentNode.x += dx*pullX/2;
+    }
+    if (otherPort.parentNode.fixed!=true){
+        otherPort.parentNode.x -= dx*pullX/2;
+    }
+}
+function pullNodeY(otherPort, myPort, pullY)
+{
     var my = globalY(myPort);
-    var ox = globalX(otherPort);
     var oy = globalY(otherPort);
-    var dx = ox-mx+offset;
     var dy = oy-my;
-    node.x += dx*pullX;
-    node.y += dy*pullY;
+    if (myPort.parentNode.fixed!=true)
+        myPort.parentNode.y += dy*pullY/2;
+    if (otherPort.parentNode.fixed!=true)
+        otherPort.parentNode.y -= dy*pullY/2;
 }
 
 function wirePull(pullX, pullY, offset, alpha)
 {
     return function(node){
-        if (node.fixed) {
-            return;
-        }
         node.inputPorts.forEach(function(i)
         {
-            pullNode(node, i.wire.driver, i, pullX*alpha, pullY*alpha, -offset);
+            pullNodeY(i.driver, i, pullY*alpha);
+            pullNodeX(i.driver, i, pullX*alpha, offset);
         });
         node.outputPorts.forEach(function(o)
         {
             o.wire.riders.forEach(function(r)
             {
-                pullNode(node, r.value, o, pullX*alpha, pullY*alpha, offset);
+                pullNodeY(r, o, pullY*alpha);
+                pullNodeX(r, o, pullX*alpha, offset);
             });
         });
     };
