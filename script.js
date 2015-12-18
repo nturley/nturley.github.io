@@ -415,6 +415,50 @@ rootNodes.forEach(function(n)
 });
 
 
+function addDummies(driverPort, riderPort, dummies)
+{
+    var numberOfDummies = riderPort.parentNode.depth - driverPort.parentNode.depth - 1;
+    if (numberOfDummies==0)
+        return;
+    // disconnect
+    driverPort.wire.riders = driverPort.wire.riders.filter(function(r){return r!=riderPort;});
+
+    
+    var lastDriverPort = driverPort;
+    for (var i=0;i<numberOfDummies;i++)
+    {
+        var dummy = 
+        {
+            'type':'$_dummy_',
+            'inputPorts' : [{'driver':lastDriverPort}],
+            'outputPorts': [{'wire':{'riders':[]}}],
+            'depth' : driverPort.parentNode.depth+i+1
+        }
+        dummy.inputPorts[0].parentNode = dummy;
+        dummy.outputPorts[0].parentNode = dummy;
+        dummy.outputPorts[0].wire.driver = dummy.outputPorts[0];
+        lastDriverPort.wire.riders.push(dummy.inputPorts[0]);
+        lastDriverPort = dummy.outputPorts[0];
+        dummies.push(dummy);
+        wires.push(dummy.outputPorts[0].wire);
+    }
+    lastDriverPort.wire.riders.push(riderPort);
+    riderPort.driver = lastDriverPort;
+}
+
+var allDummies = [];
+
+nodes.forEach(function(n)
+{
+    n.inputPorts.forEach(function(i)
+    {
+        addDummies(i.driver, i, allDummies);
+    });
+});
+
+
+nodes = nodes.concat(allDummies);
+
 
 //-------------------------------------
 // create SVG objects for each data object and assign them classes
@@ -424,7 +468,22 @@ var viewer = d3.select('#viewer');
 var cellViews = viewer.selectAll('.cell')
     .data(cells)
     .enter().append('g')
-        .attr('class','cell node generic');
+        .attr('class',function(d)
+            {
+                var ret = 'cell node generic';
+                if (d.type=='$_dummy_')
+                {
+                    ret+=' dummy';
+                }
+                return ret;
+            });
+
+viewer.selectAll('.dummy')
+    .data(allDummies)
+    .enter().append('g')
+        .attr('class','node dummy')
+        .append('line')
+            .attr('class','dummyBody')
 
 cellViews.selectAll('.inPort')
         .data(function(cell){return cell.inputPorts;})
@@ -683,6 +742,31 @@ function wirePull(pullX, pullY, offset, alpha)
                 pullNodeX(r, o, pullX*alpha, offset);
             });
         });
+        if (node.type=='$_dummy_')
+        {
+            var chain = [node];
+            var currNode = node;
+            while(currNode.inputPorts[0].driver.parentNode.type=='$_dummy_')
+            {
+                currNode = currNode.inputPorts[0].driver.parentNode;
+                chain.push(currNode);
+            }
+            var currNode = node;
+            while(currNode.outputPorts[0].wire.riders[0].parentNode.type=='$_dummy_')
+            {
+                currNode = currNode.outputPorts[0].wire.riders[0].parentNode;
+                chain.push(currNode);
+            }
+            var sum = 0;
+            chain.forEach(function(n)
+            {
+                sum += n.y;
+            });
+            chain.forEach(function(n)
+            {
+                n.y = sum/chain.length;
+            });
+        }
     };
 }
 
@@ -776,6 +860,15 @@ d3.selectAll('.generic').selectAll('.inport .stem')
 d3.selectAll('.generic').selectAll('.outport .stem')
     .attr({ 'x2' : -STEM_LENGTH });
 
+d3.selectAll('.dummyBody')
+    .attr(
+    {
+        'x1':(-BODY_WIDTH/2-STEM_LENGTH),
+        'x2':(BODY_WIDTH/2+STEM_LENGTH),
+        'y1':PORT_GAP/2,
+        'y2':PORT_GAP/2
+    });
+
 // position generic node bodies
 d3.selectAll('.generic .nodeBody')
     .attr('width', BODY_WIDTH)
@@ -784,10 +877,10 @@ d3.selectAll('.generic .nodeBody')
 
 // position the nodelabel and set it's text
 d3.selectAll('.generic.cell .label')
-    .text(function(d){return d.type;})
+    .text(function(d){return d.depth;})
 
 d3.selectAll('.generic.external .label')
-    .text(function(d){return d.key;})
+    .text(function(d){return d.depth;})
 
 d3.selectAll('.generic .label')
     .attr('y', NODE_LABEL_Y)
