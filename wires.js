@@ -25,22 +25,22 @@ function yRange(wire)
 	var ret = {};
 	wire.sources.forEach(function(s)
 	{
-		if (ret.min == undefined || s.y < ret.min)
+		if (ret.min == undefined || s.y+20 < ret.min)
 		{
 			ret.min = s.y+20;
 		}
-		if (ret.max == undefined || s.y > ret.max)
+		if (ret.max == undefined || s.y+20 > ret.max)
 		{
 			ret.max = s.y+20;
 		}
 	});
 	wire.sinks.forEach(function(s)
 	{
-		if (ret.min == undefined || s.y < ret.min)
+		if (ret.min == undefined || s.y+20 < ret.min)
 		{
 			ret.min = s.y+20;
 		}
-		if (ret.max == undefined || s.y > ret.max)
+		if (ret.max == undefined || s.y+20 > ret.max)
 		{
 			ret.max = s.y+20;
 		}
@@ -85,23 +85,31 @@ viewer.selectAll('.rightNode')
 viewer.selectAll('rect')
 	.attr('width',40)
 	.attr('height',40);
-var wires = viewer.selectAll('.wire')
+
+viewer.selectAll('.wire')
 	.data(wires)
 	.enter().append('g')
 		.attr('class','wire')
 		.append('line')
 			.attr('class','wireMiddle')
 
-d3.selectAll('.wire')
+viewer.selectAll('.wire')
 	.selectAll('.source')
 		.data(function(d){return d.sources;})
 		.enter().append('line')
 			.attr('class','source port');
-d3.selectAll('.wire')
+
+viewer.selectAll('.wire')
 	.selectAll('.sink')
 		.data(function(d){return d.sinks;})
 		.enter().append('line')
 			.attr('class','sink port');
+
+viewer.selectAll('.wire')
+	.selectAll('.dot')
+	.data(function(d){return d.sinks.concat(d.sources);})
+	.enter().append('circle')
+		.attr('class','dot')
 
 nodeScale = d3.scale.linear()
     .domain([0,1])
@@ -118,29 +126,77 @@ rightLevel.forEach(function(n, i)
 	n.y = nodeScale(i);
 });
 
-d3.selectAll('.wireMiddle')
-	.attr('y1',function(d){return yRange(d).min;})
-	.attr('y2',function(d){return yRange(d).max;})
-	.attr('x1',function(d){return xMean(d);})
-	.attr('x2',function(d){return xMean(d);})
-	
+d3.selectAll('.dot')
+	.attr('r',3);
+
+function updateDots()
+{
+	d3.selectAll('.dot')
+		.attr('cx',function(d){return xMean(d.wire);})
+		.attr('cy',function(d){return d.y+20;})
+		.attr('visibility',function(d)
+			{
+				var range = yRange(d.wire);
+				if (d.y > range.min-20 && d.y < range.max-20)
+				{
+					return "visible";
+				}
+				else
+				{
+					return "hidden";
+				}
+			});
+}
+
+function updateWires()
+{
+	d3.selectAll('.wireMiddle')
+		.attr('y1',function(d){return yRange(d).min;})
+		.attr('y2',function(d){return yRange(d).max;})
+		.attr('x1',function(d){return xMean(d);})
+		.attr('x2',function(d){return xMean(d);})
+		
+	d3.selectAll('.source')
+		.attr('x1',function(d){return d.x+40;})
+		.attr('x2',function(d){return xMean(d.wire);})
+		.attr('y1',function(d){return d.y+20;})
+		.attr('y2',function(d){return d.y+20;})
+		
+	d3.selectAll('.sink')
+		.attr('x1',function(d){return d.x;})
+		.attr('x2',function(d){return xMean(d.wire);})
+		.attr('y1',function(d){return d.y+20;})
+		.attr('y2',function(d){return d.y+20;})
+}
+function updateNodes()
+{
+	d3.selectAll('.nodeBody')
+		.attr('x',function(d){return d.x;})
+		.attr('y',function(d){return d.y;});
+}
+
+updateDots();
+updateNodes();
+updateWires();
+
+function tick()
+{
+	updateDots();
+	updateNodes();
+	updateWires();
+}
+
+var force = d3.layout.force()
+    .nodes(leftLevel.concat(rightLevel))
+    .gravity(0)
+    .charge(0)
+    .friction(0)
+    .on('tick',tick);
+
+var drag = force.drag();
 
 d3.selectAll('.nodeBody')
-	.attr('x',function(d){return d.x;})
-	.attr('y',function(d){return d.y;});
-	
+    .call(drag);
 
-d3.selectAll('.source')
-	.attr('x1',function(d){return d.x+40;})
-	.attr('x2',function(d){return xMean(d.wire);})
-	.attr('y1',function(d){return d.y+20;})
-	.attr('y2',function(d){return d.y+20;})
-	
-d3.selectAll('.sink')
-	.attr('x1',function(d){return d.x;})
-	.attr('x2',function(d){return xMean(d.wire);})
-	.attr('y1',function(d){return d.y+20;})
-	.attr('y2',function(d){return d.y+20;})
-
-console.log(leftLevel);
-console.log(rightLevel);
+force
+    .start();
