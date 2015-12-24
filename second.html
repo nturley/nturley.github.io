@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+.stem
+{
+   stroke:#000;
+}
+.leaf
+{
+   stroke:#000;
+   fill-opacity:0;
+}
+.wire
+{
+   stroke:#000;
+}
+.nodeBody
+{
+   stroke:#000;
+   fill-opacity:0;
+}
+.net
+{
+   stroke:#000;
+}
+</style>
+</head>
+   <body>
+      pull X:<span id="pullXSpan"></span>
+      <input type="range" id="pullX" value="3" min="0" max="10" step="0.1"/>
+      pull Y:<span id="pullYSpan"></span>
+      <input type="range" id="pullY" value="0.5" min="0" max="5" step="0.1"/>
+      X offset:<span id="pullXOffsetSpan"></span>
+      <input type="range" id="pullXOffset" value="115" min="0" max="200"/><br/>
+      Charge:<span id="chargeSpan"></span>
+      <input type="range" id="chargeRange" value="3000" min="0" max="10000" step="500"/>
+      Dummy Charge:<span id="dummyChargeSpan"></span>
+      <input type="range" id="dummyChargeRange" value="2000" min="0" max="3000" step="100"/>
+      Gravity:<span id="gravitySpan"></span>
+      <input type="range" id="gravity" value="0.5" min="0.0" max="1.0" step="0.05"/><br/>
+      Wire Pull:<span id="wirePullSpan"></span>
+      <input type="range" id="wirePull" value="0.5" min="0.0" max="1.0" step="0.05"/>
+      Wire Offset:<span id="wireOffsetSpan"></span>
+      <input type="range" id="wireOffset" value="40" min="0.0" max="100" step="1"/>
+      Wire Charge:<span id="wireChargeSpan"></span>
+      <input type="range" id="wireCharge" value="40" min="0.0" max="100" step="1"/><br />
+      Wire Charge Max:<span id="wireChargeMaxSpan"></span>
+      <input type="range" id="wireChargeMax" value="40" min="0.0" max="100" step="1"/>
+      <button id="release" onclick="releaseNodes()">Release pinned nodes</button><br/>
+      <svg id="viewer">
+      </svg>
+      <script type="text/javascript" src="d3.min.js" charset="utf-8"></script>
+      <script type="text/javascript" src="diagram.js" charset="utf-8"></script>
+      <script type="text/javascript" src="splitjoins.js" charset="utf-8"></script>
+      <script type="text/javascript" src="second.js" charset="utf-8"></script>
+   </body>
+</html>

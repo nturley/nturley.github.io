@@ -1,24 +1,26 @@
-var leftLevel = [{},{},{}];
-var rightLevel = [{},{},{},{}];
+var leftLevel = [{},{}];
+var rightLevel = [{},{}];
 var wires =
 [
 	{
-		'sources':[leftLevel[0],leftLevel[1]],
-		'sinks':[rightLevel[0],rightLevel[2]]
+		'sources':[leftLevel[0]],
+		'sinks':[rightLevel[0]]
 	},
 	{
-		'sources':[leftLevel[2]],
-		'sinks':[rightLevel[1],rightLevel[3]]
-	}
+		'sources':[leftLevel[1]],
+		'sinks':[rightLevel[1]]
+	},
 ];
-leftLevel[0].wire = wires[0];
-leftLevel[1].wire = wires[0];
-leftLevel[2].wire = wires[1];
-rightLevel[0].wire = wires[0];
-rightLevel[1].wire = wires[1];
-rightLevel[2].wire = wires[0];
-rightLevel[3].wire = wires[1];
 
+wires.forEach(function(w)
+{
+	function tagWire(s)
+	{
+		s.wire = w;
+	}
+	w.sources.forEach(tagWire);
+	w.sinks.forEach(tagWire);
+});
 
 function yRange(wire)
 {
@@ -125,6 +127,10 @@ rightLevel.forEach(function(n, i)
 	n.x = 150;
 	n.y = nodeScale(i);
 });
+wires.forEach(function(w)
+{
+	w.x = xMean(w);
+});
 
 d3.selectAll('.dot')
 	.attr('r',3);
@@ -132,7 +138,7 @@ d3.selectAll('.dot')
 function updateDots()
 {
 	d3.selectAll('.dot')
-		.attr('cx',function(d){return xMean(d.wire);})
+		.attr('cx',function(d){return d.wire.x;})
 		.attr('cy',function(d){return d.y+20;})
 		.attr('visibility',function(d)
 			{
@@ -153,18 +159,18 @@ function updateWires()
 	d3.selectAll('.wireMiddle')
 		.attr('y1',function(d){return yRange(d).min;})
 		.attr('y2',function(d){return yRange(d).max;})
-		.attr('x1',function(d){return xMean(d);})
-		.attr('x2',function(d){return xMean(d);})
+		.attr('x1',function(d){return d.x;})
+		.attr('x2',function(d){return d.x;})
 		
 	d3.selectAll('.source')
 		.attr('x1',function(d){return d.x+40;})
-		.attr('x2',function(d){return xMean(d.wire);})
+		.attr('x2',function(d){return d.wire.x;})
 		.attr('y1',function(d){return d.y+20;})
 		.attr('y2',function(d){return d.y+20;})
 		
 	d3.selectAll('.sink')
 		.attr('x1',function(d){return d.x;})
-		.attr('x2',function(d){return xMean(d.wire);})
+		.attr('x2',function(d){return d.wire.x;})
 		.attr('y1',function(d){return d.y+20;})
 		.attr('y2',function(d){return d.y+20;})
 }
@@ -179,8 +185,50 @@ updateDots();
 updateNodes();
 updateWires();
 
-function tick()
+function pushWires(alpha, push)
 {
+	return function(wire)
+	{
+		rightmostSource = null;
+		wire.sources.forEach(function(s)
+		{
+			if (rightmostSource==null || s.x>rightmostSource.x)
+				rightmostSource = s;	
+		});
+		if (rightmostSource!=null)
+		{
+			dx = wire.x - (rightmostSource.x+80);
+			wire.x -= dx*alpha*push;
+		}
+		leftmostSink = null;
+		wire.sinks.forEach(function(s)
+		{
+			if (leftmostSink==null || s.x<leftmostSink.x)
+				leftmostSink = s;
+		});
+		if (leftmostSink!=null)
+		{
+			dx = wire.x - (leftmostSink.x-40);
+			wire.x -= dx*alpha*push;
+		}
+		// vertical wire segments repulse each other
+		// We max out the force so it's easy to overpower
+		wires.forEach(function(wire2)
+		{
+			if (wire==wire2)
+				return;
+			force = 100*alpha/(wire.x - wire2.x);
+			force = d3.min([0.25,force]);
+			force = d3.max([-0.25,force]);
+			wire.x += force;
+			wire2.x -= force;
+		});
+	};
+}
+
+function tick(e)
+{
+	d3.selectAll('.wire').each(pushWires(e.alpha, 0.5));
 	updateDots();
 	updateNodes();
 	updateWires();

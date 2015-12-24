@@ -198,12 +198,12 @@ nodes.forEach(function(n)
         var port = n.outputPorts[i];
         port.parentNode = n;
         riders = nets[arrayToBitstring(port.value)];
-        var wire = {'driver':port,'riders':riders};
+        var wire = {'drivers': [port], 'riders': riders};
         wires.push(wire);
         port.wire = wire;
         riders.forEach(function(r)
         {
-            r.driver=port;
+            r.wire = wire;
         });
     }
 });
@@ -216,7 +216,6 @@ var rootNodes = nodes.filter(function(d) {
 var leafNodes = nodes.filter(function(d) {
     return d.outputPorts.length == 0;
 });
-
 
 // DFS to detect cycles
 function visitDependents(n, visited)
@@ -246,26 +245,9 @@ rootNodes.forEach(function(n)
     visitDependents(n,{});
 });
 
-nodes.forEach(function(n)
-{
-    n.inputPorts.forEach(function(i)
-    {
-        if (i.feedback)
-        {
-            n.outputPorts.push(i);
-            var newInputPort = {'parentNode':i.driver.parentNode,'driver':i};
-            var wire = {'driver':i,'riders':[newInputPort]};
-            wires.push(wire);
-            i.wire = wire;
-            n.inputPorts = n.inputPorts.filter(function(port){return port!=i;});
-            i.driver.parentNode.inputPorts.push(newInputPort);
-            i.driver.wire.riders = i.driver.wire.riders.filter(function(port){return port!=i;});
-        }
-    });
-});
+// we have now tagged all feedback paths
 
-// we are now cycle free!
-// Do a longest path algo to assign nodes a depth
+// Do a longest path algo to assign nodes an rdepth
 var greatestRDepth = 0;
 function reverseDFS(node, rdepth)
 {
@@ -276,7 +258,8 @@ function reverseDFS(node, rdepth)
             greatestRDepth=rdepth;
         node.inputPorts.forEach(function(p)
         {
-            reverseDFS(p.driver.parentNode, rdepth+1);
+            if (p.feedback != true)
+                reverseDFS(p.wire.drivers[0].parentNode, rdepth+1);
         });
     }
 }
@@ -284,6 +267,8 @@ leafNodes.forEach(function(n)
 {
     reverseDFS(n,0);
 });
+
+// and then do it again from the opposite side
 
 function DFS(node, depth)
 {
@@ -294,7 +279,8 @@ function DFS(node, depth)
         {
             p.wire.riders.forEach(function(r)
             {
-                DFS(r.parentNode, depth+1);
+                if (r.feedback != true)
+                    DFS(r.parentNode, depth+1);
             });
         });
     }
@@ -305,50 +291,89 @@ rootNodes.forEach(function(n)
 });
 
 
-function addDummies(driverPort, riderPort, dummies)
+function addDummies(driverPort, riderPort, dummies, wires)
 {
     var numberOfDummies = riderPort.parentNode.depth - driverPort.parentNode.depth - 1;
     if (numberOfDummies==0)
         return;
     // disconnect
-    driverPort.wire.riders = driverPort.wire.riders.filter(function(r){return r!=riderPort;});
-
-    
-    var lastDriverPort = driverPort;
-    for (var i=0;i<numberOfDummies;i++)
-    {
-        var dummy = 
+    driverPort.wire.riders = driverPort.wire.riders.filter(function(r)
         {
-            'type':'$_dummy_',
-            'inputPorts' : [{'driver':lastDriverPort}],
-            'outputPorts': [{'wire':{'riders':[]}}],
-            'depth' : driverPort.parentNode.depth+i+1
+            return r!=riderPort;
+        });
+    var lastWire = driverPort.wire;
+    if (numberOfDummies>0)
+    {
+        var dummyNumber=0;
+        while (dummyNumber<numberOfDummies && lastWire.nextLevel != undefined)
+        {
+            lastWire = lastWire.nextLevel;
+            dummyNumber+=1;
         }
-        dummy.inputPorts[0].parentNode = dummy;
-        dummy.outputPorts[0].parentNode = dummy;
-        dummy.outputPorts[0].wire.driver = dummy.outputPorts[0];
-        lastDriverPort.wire.riders.push(dummy.inputPorts[0]);
-        lastDriverPort = dummy.outputPorts[0];
-        dummies.push(dummy);
-        wires.push(dummy.outputPorts[0].wire);
+        for (;dummyNumber<numberOfDummies;dummyNumber++)
+        {
+            var dummy = 
+            {
+                'type':'$_dummy_',
+                'inputPorts' : [{'wire':lastWire}],
+                'outputPorts': [{'wire':{'riders':[]}}],
+                'depth' : driverPort.parentNode.depth+dummyNumber+1
+            }
+            dummy.inputPorts[0].parentNode = dummy;
+            dummy.outputPorts[0].parentNode = dummy;
+            dummy.outputPorts[0].wire.drivers = [dummy.outputPorts[0]];
+            lastWire.riders.push(dummy.inputPorts[0]);
+            lastWire.nextLevel = dummy.outputPorts[0].wire;
+            lastWire = dummy.outputPorts[0].wire;
+            dummies.push(dummy);
+            wires.push(lastWire);
+        }
+        riderPort.wire = lastWire;
+        lastWire.riders.push(riderPort);
     }
-    lastDriverPort.wire.riders.push(riderPort);
-    riderPort.driver = lastDriverPort;
+    else // feedback
+    {
+        numberOfDummies=-numberOfDummies;
+        var dummyNumber=0;
+        while (dummyNumber<numberOfDummies && lastWire.previousLevel != undefined)
+        {
+            lastWire = lastWire.previousLevel;
+            dummyNumber+=1;
+        }
+        for (;dummyNumber<numberOfDummies;dummyNumber++)
+        {
+            var dummy =
+            {
+                'type':'$_dummy_',
+                'inputPorts' : [{'wire':{'drivers':[]}}],
+                'outputPorts': [{'wire':lastWire}],
+                'depth':driverPort.parentNode.depth-dummyNumber
+            }
+            dummy.inputPorts[0].parentNode = dummy;
+            dummy.outputPorts[0].parentNode = dummy;
+            dummy.inputPorts[0].wire.riders = [dummy.inputPorts[0]];
+            lastWire.drivers.push(dummy.outputPorts[0]);
+            lastWire.previousLevel = dummy.inputPorts[0].wire;
+            lastWire = dummy.inputPorts[0].wire;
+            dummies.push(dummy);
+            wires.push(lastWire);
+        }
+        lastWire.riders.push(riderPort);
+        riderPort.wire = lastWire;
+    }
 }
 
 var allDummies = [];
 
-nodes.forEach(function(n)
+wires.forEach(function(w)
 {
-    n.inputPorts.forEach(function(i)
+    w.riders.forEach(function(r)
     {
-        addDummies(i.driver, i, allDummies);
+        addDummies(w.drivers[0],r,allDummies, wires);
     });
 });
 
-
 nodes = nodes.concat(allDummies);
-
 
 //-------------------------------------
 // create SVG objects for each data object and assign them classes
@@ -358,22 +383,12 @@ var viewer = d3.select('#viewer');
 var cellViews = viewer.selectAll('.cell')
     .data(cells)
     .enter().append('g')
-        .attr('class',function(d)
-            {
-                var ret = 'cell node generic';
-                if (d.type=='$_dummy_')
-                {
-                    ret+=' dummy';
-                }
-                return ret;
-            });
+        .attr('class','cell node generic');
 
 viewer.selectAll('.dummy')
     .data(allDummies)
     .enter().append('g')
         .attr('class','node dummy')
-        .append('line')
-            .attr('class','dummyBody')
 
 cellViews.selectAll('.inPort')
         .data(function(cell){return cell.inputPorts;})
@@ -419,18 +434,24 @@ wireViews = viewer.selectAll('.net')
     .data(wires)
     .enter().append('g')
         .attr('class', 'net')
-        .selectAll('.wire')
-            .data(function(d){return d.riders})
-            .enter().append('g')
-                .attr('class','wire')
 
 wireViews.append('line')
-    .attr('class', 'wirestart');
-wireViews.append('line')
-    .attr('class','wiremiddle');
-wireViews.append('line')
-    .attr('class','wireend')
+    .attr('class','verticalWire')
 
+wireViews.selectAll('.driverWire')
+    .data(function(d){return d.drivers;})
+    .enter().append('line')
+        .attr('class','driverWire wire');
+
+wireViews.selectAll('.riderWire')
+    .data(function(d){return d.riders;})
+    .enter().append('line')
+        .attr('class','riderWire wire');
+
+wireViews.selectAll('.wireDot')
+    .data(function(d){return d.drivers.concat(d.riders);})
+    .enter().append('circle')
+        .attr('class','wireDot');
 
 //-----------------------------
 // Assign all other attributes to each SVG object
@@ -438,10 +459,10 @@ wireViews.append('line')
 // positioning constants
 var VIEWER_WIDTH = 1500;
 var VIEWER_HEIGHT = 1000;
-var EDGE_NODE_GAP = 20;
+var EDGE_NODE_GAP = 40;
 var NODE_GAP = 80;
 var BODY_WIDTH = 40;
-var LEAF_DIAMETER = 6;
+var LEAF_DIAMETER = 4;
 var LEAF_RADIUS = LEAF_DIAMETER/2;
 var STEM_LENGTH = 10;
 var EDGE_PORT_GAP = 10;
@@ -465,44 +486,30 @@ function genericHeight (cell)
 
 // set view model position properties
 
-for (var i in inputPorts)
+nodes.forEach(function(n,i)
 {
-    inputPorts[i].x = 50;
-    inputPorts[i].y = nodeScale(i);
-}
-
-for (var i in cells)
-{
-    cells[i].x = 300;
-    cells[i].y = nodeScale(i);
-}
-
-for (var i in outputPorts)
-{
-    outputPorts[i].x = 550;
-    outputPorts[i].y = nodeScale(i);
-}
-
-for (var i in allDummies)
-{
-    allDummies[i].x = 550;
-    allDummies[i].y = nodeScale(i);
-}
-
-for (var i in nodes)
-{
-    var node = nodes[i];
-    for (var j in node.inputPorts)
+    n.x = nodeScale(n.depth);
+    n.y = i*10;
+    n.inputPorts.forEach(function(p, j)
     {
-        node.inputPorts[j].x = -BODY_WIDTH/2 - STEM_LENGTH;
-        node.inputPorts[j].y = portScale(j);
-    }
-    for (var j in node.outputPorts)
+        p.x = -BODY_WIDTH/2 - STEM_LENGTH;
+        p.y = portScale(j);
+    });
+    n.outputPorts.forEach(function(p, j)
     {
-        node.outputPorts[j].x = BODY_WIDTH/2 + STEM_LENGTH;
-        node.outputPorts[j].y = portScale(j);
-    }
-}
+        p.x = BODY_WIDTH/2 + STEM_LENGTH;
+        p.y = portScale(j);
+    });
+});
+
+allDummies.forEach(function(n)
+{
+    n.inputPorts.concat(outputPorts).forEach(function(p)
+    {
+        p.x = BODY_WIDTH/2+STEM_LENGTH;
+        p.y = EDGE_PORT_GAP;
+    });
+});
 
 function dragstart(d)
 {
@@ -526,82 +533,55 @@ function globalY(p)
     return thing;
 }
 
-function x2(d)
+wires.forEach(function(w)
 {
-    if (globalX(d.driver) < globalX(d))
-        return (globalX(d) + globalX(d.driver)) / 2;
-    return globalX(d.driver);
-}
-
-function y2(d)
-{
-    if (globalX(d.driver) < globalX(d))
-        return globalY(d.driver);
-    return (globalY(d) + globalY(d.driver)) / 2;
-}
-
-function x3(d)
-{
-    if (globalX(d.driver) < globalX(d))
-        return (globalX(d) + globalX(d.driver)) / 2;
-    return globalX(d);
-}
-function y3(d)
-{
-    if (globalX(d.driver) < globalX(d))
-        return globalY(d);
-    return (globalY(d) + globalY(d.driver)) / 2;
-}
-
+    w.x = globalX(w.riders[0]);
+});
 
 function updateWires()
 {
-    d3.selectAll('.wire').selectAll('.wirestart')
-        .attr('x1',function(d)
+    wires.forEach(function(w)
+    {
+        w.yRange = d3.extent(w.riders.concat(w.drivers),globalY);
+    });
+    d3.selectAll('.verticalWire')
+        .attr('x1',function(d){return d.x;})
+        .attr('y1',function(d){return d.yRange[0]})
+        .attr('x2',function(d){return d.x;})
+        .attr('y2',function(d){return d.yRange[1]});
+    d3.selectAll('.wire')
+        .attr('x1',function(d){return d.wire.x;})
+        .attr('y1',globalY)
+        .attr('x2',globalX)
+        .attr('y2',globalY);
+    d3.selectAll('.wireDot')
+        .attr('cx',function(d){return d.wire.x;})
+        .attr('cy',globalY)
+        .attr('r',3)
+        .attr('visibility',function(d)
             {
-                return d.driver.x + d.driver.parentNode.x;
-            })
-        .attr('y1',function(d)
-            {
-                return globalY(d.driver);
-            })
-        .attr('x2',x2)
-        .attr('y2',y2);
-    d3.selectAll('.wire').selectAll('.wiremiddle')
-        .attr('x1',x2)
-        .attr('y1',y2)
-        .attr('x2',x3)
-        .attr('y2',function(d)
-            {
-                if (globalX(d.driver) < globalX(d))
-                    return globalY(d);
-                return (globalY(d) + globalY(d.driver)) / 2;
-            });
-    d3.selectAll('.wire').selectAll('.wireend')
-        .attr('x1',x3)
-        .attr('y1',y3)
-        .attr('x2',function(d)
-            {
-                return d.x + d.parentNode.x;
-            })
-        .attr('y2',function(d)
-            {
-                return globalY(d);
+                if (globalY(d) > d.wire.yRange[0] && globalY(d) < d.wire.yRange[1])
+                {
+                    return "visible";
+                }
+                else
+                {
+                    return "hidden";
+                }
             });
 }
 
 
 updateWires();
 updateNodes();
-// size the viewer (assumes there are more cells than in/outputPorts)
+// size the viewer
 d3.select('#viewer')
     .attr('width',VIEWER_WIDTH)
     .attr('height',VIEWER_HEIGHT);
 
-
 function pullNodeX(otherPort, myPort, pullX, offset)
 {
-    
+    // the difference in depth should be 1, -1, or 0
     var targetX = offset*(myPort.parentNode.depth - otherPort.parentNode.depth);
     var dx = otherPort.parentNode.x - myPort.parentNode.x - targetX;
 
@@ -612,6 +592,7 @@ function pullNodeX(otherPort, myPort, pullX, offset)
         otherPort.parentNode.x -= dx*pullX/2;
     }
 }
+
 function pullNodeY(otherPort, myPort, pullY)
 {
     var my = globalY(myPort);
@@ -625,49 +606,84 @@ function pullNodeY(otherPort, myPort, pullY)
 
 function wirePull(pullX, pullY, offset, alpha)
 {
-    return function(node){
-        node.inputPorts.forEach(function(i)
+    return function(wire){
+        //vertical wires pulls to the right of the rightmost driver
+        rightmostDriver = null;
+        wire.drivers.forEach(function(s)
         {
-            pullNodeY(i.driver, i, pullY*alpha);
-            pullNodeX(i.driver, i, pullX*alpha, offset);
+            if (rightmostDriver==null || globalX(s)>globalX(rightmostDriver))
+                rightmostDriver = s;    
         });
-        node.outputPorts.forEach(function(o)
+        if (rightmostDriver!=null)
         {
-            o.wire.riders.forEach(function(r)
-            {
-                pullNodeY(r, o, pullY*alpha);
-                pullNodeX(r, o, pullX*alpha, offset);
-            });
-        });
-        if (node.type=='$_dummy_')
-        {
-            var chain = [node];
-            var currNode = node;
-            while(currNode.inputPorts[0].driver.parentNode.type=='$_dummy_')
-            {
-                currNode = currNode.inputPorts[0].driver.parentNode;
-                chain.push(currNode);
-            }
-            var currNode = node;
-            while(currNode.outputPorts[0].wire.riders[0].parentNode.type=='$_dummy_')
-            {
-                currNode = currNode.outputPorts[0].wire.riders[0].parentNode;
-                chain.push(currNode);
-            }
-            var sum = 0;
-            chain.forEach(function(n)
-            {
-                sum += n.y;
-            });
-            chain.forEach(function(n)
-            {
-                n.y = sum/chain.length;
-            });
+            dx = wire.x - globalX(rightmostDriver)-20;
+            wire.x -= dx*alpha;
         }
+        //vertical wire pulls to the left of the leftmost rider
+        leftmostRider = null;
+        wire.riders.forEach(function(s)
+        {
+            if (leftmostRider==null || globalX(s)<globalX(leftmostRider))
+                leftmostRider = s;
+        });
+        if (leftmostRider!=null)
+        {
+            dx = wire.x - globalX(leftmostRider)+20;
+            wire.x -= dx*alpha;
+        }
+        // all ports on the net pull on the nodes
+        wire.drivers.concat(wire.riders).forEach(function(p0)
+        {
+            p0.wire.drivers.concat(p0.wire.riders).forEach(function(p1)
+            {
+                if (p1==p0) return;
+                pullNodeX(p0,p1,pullX*alpha,offset);
+                pullNodeY(p0,p1,pullY*alpha);
+            });
+        });
+        //wires repel each other
+        wires.forEach(function(wire2)
+        {
+            if (wire2==wire) return;
+            if (wire.yRange[0]>wire2.yRange[1]+10) return;
+            if (wire.yRange[1]+10<wire2.yRange[0]) return;
+            var forceMag = 50*alpha/(wire.x - wire2.x);
+            forceMag = d3.min([0.25,forceMag]);
+            forceMag = d3.max([-0.25,forceMag]);
+            wire.x += forceMag;
+            wire2.x -= forceMag;
+             
+        });
     };
 }
-
-
+function straightenDummies()
+{
+    return function(node)
+    {
+        var chain = [node];
+        var currNode = node;
+        while(currNode.inputPorts[0].wire.drivers.length>0 && currNode.inputPorts[0].wire.drivers[0].parentNode.type=='$_dummy_')
+        {
+            currNode = currNode.inputPorts[0].wire.drivers[0].parentNode;
+            chain.push(currNode);
+        }
+        var currNode = node;
+        while(currNode.outputPorts[0].wire.riders.length>0 && currNode.outputPorts[0].wire.riders[0].parentNode.type=='$_dummy_')
+        {
+            currNode = currNode.outputPorts[0].wire.riders[0].parentNode;
+            chain.push(currNode);
+        }
+        var sum = 0;
+        chain.forEach(function(n)
+        {
+            sum += n.y;
+        });
+        chain.forEach(function(n)
+        {
+            n.y = sum/chain.length;
+        });
+    };
+}
 
 function getPullX()
 {
@@ -688,10 +704,16 @@ function getPullXOffset()
     d3.select('#pullXOffsetSpan').text(p);
     return p;
 }
-function getCharge(d)
+function getCharge()
 {
     var c = document.getElementById('chargeRange').value;
     d3.select('#chargeSpan').text(c);
+    return -c;
+}
+function getDummyCharge()
+{
+    var c = document.getElementById('dummyChargeRange').value;
+    d3.select('#dummyChargeSpan').text(c);
     return -c;
 }
 
@@ -704,40 +726,66 @@ function getGravity()
 
 function tick(e)
 {
-    d3.selectAll('.node').each(wirePull(getPullX(), getPullY(), -getPullXOffset(), e.alpha));
+    d3.selectAll('.net').each(wirePull(getPullX(), getPullY(), -getPullXOffset(), e.alpha));
+    d3.selectAll('.dummy').each(straightenDummies());
     updateNodes();
     updateWires();
 }
 
-var force = d3.layout.force()
-    .nodes(nodes)
-    .size([VIEWER_WIDTH, VIEWER_HEIGHT])
-    .gravity(getGravity())
-    .charge(getCharge())
-    .on('tick',tick);
+var forces = [];
 
-var drag = force.drag()
-    .on("dragstart", dragstart);
+function updateForces()
+{
+    
+    forces.forEach(function(f)
+    {
+        f
+            .gravity(getGravity())
+            .charge(function(d){return d.type=='$_dummy_'?getDummyCharge():getCharge();})
+        f.start();
+    });
+}
 
-force
-    .start();
+function dragmove(n)
+{
+    forces.forEach(function(f){f.resume()});
+}
+
+var currDepth = 0;
+while(nodes.filter(function(n){return n.depth==currDepth}).length>0)
+{
+    var nodesAtDepth = nodes.filter(function(n){return n.depth==currDepth});
+
+    forces[currDepth] = d3.layout.force()
+        .nodes(nodesAtDepth)
+        .size([VIEWER_WIDTH, VIEWER_HEIGHT])
+        .gravity(getGravity())
+        .charge(function(d){return d.type=='$_dummy_'?getDummyCharge():getCharge();})
+        .on('tick',tick);
+
+    var drag = forces[currDepth].drag();
+
+    drag.on("dragstart", dragstart)
+    drag.on("drag",dragmove);
+
+    forces[currDepth]
+        .start();
+    currDepth++;
+}
 
 d3.selectAll('.node')
     .call(drag);
 
+
 d3.selectAll('input').on('change',function()
     {
-        force
-            .nodes(nodes)
-            .gravity(getGravity())
-            .charge(getCharge())
-            .start();
+        updateForces();
     });
 
 function releaseNode(n)
 {
     n.fixed = false;
-    force.resume();
+    forces.forEach(function(f){f.resume()});
 }
 
 function releaseNodes(){
@@ -774,10 +822,10 @@ d3.selectAll('.generic .nodeBody')
 
 // position the nodelabel and set it's text
 d3.selectAll('.generic.cell .label')
-    .text(function(d){return d.depth;})
+    .text(function(d){return d.type;})
 
 d3.selectAll('.generic.external .label')
-    .text(function(d){return d.depth;})
+    .text(function(d){return d.key;})
 
 d3.selectAll('.generic .label')
     .attr('y', NODE_LABEL_Y)
@@ -785,4 +833,4 @@ d3.selectAll('.generic .label')
 
 // position the leaves
 d3.selectAll('.leaf')
-    .attr('r',LEAF_RADIUS);
+    .attr('r',2);
