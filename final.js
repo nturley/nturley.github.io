@@ -500,8 +500,8 @@ var NODE_WIDTH = 30;
 var EDGE_PORT_GAP = 10;
 var PORT_GAP = 20;
 var NODE_GAP = 80;
-var STEM_LENGTH = 30;
-var PORT_LABEL_X = 25;
+var STEM_LENGTH = 8;
+var PORT_LABEL_X = 5;
 var PORT_LABEL_Y = -3;
 var NODE_LABEL_X = 0;
 var NODE_LABEL_Y = -4;
@@ -515,6 +515,18 @@ function genericHeight (cell)
 
 //TODO: draw a crapload of SVG symbols
 var shapes = {
+  '$_dummy_' : function(viewObject) {
+    var inPorts = viewObject.selectAll('.inport')
+      .each(function(port){
+        port.x = 0;
+        port.y = 0;
+      });
+      var outPorts = viewObject.selectAll('.outport')
+      .each(function(port){
+        port.x = 0;
+        port.y = 0;
+      });
+  },
   '$_generic_' : function(viewObject) {
     viewObject.append('rect')
       .attr('class','nodeBody')
@@ -524,7 +536,7 @@ var shapes = {
       .attr('y',0);
     viewObject.append('text')
       .attr('class','nodeLabel')
-      .text(function(d){return d.depth})
+      .text(function(d){return d.type})
       .attr('x',NODE_LABEL_X)
       .attr('y',NODE_LABEL_Y);
 
@@ -596,7 +608,8 @@ function buildWires(viewObjects) {
   viewObjects.wires.selectAll('.wireDot')
     .data(function(d){return d.drivers.concat(d.riders);})
     .enter().append('circle')
-      .attr('class','wireDot');
+      .attr('class','wireDot')
+      .attr('r',2);
 }
 
 // best guess placement initially. The forces will untangle it.
@@ -615,6 +628,9 @@ function assignNodeInitialPosition(viewObjects) {
       nodesInRank[d.depth]=[d];
     }
     d.y = INIT_NODE_Y+(nodesInRank[d.depth].length-1)*NODE_GAP;
+  });
+  d3.selectAll('.net').each(function(wire){
+    wire.x = d3.mean(wire.drivers.concat(wire.riders), portGlobalX);
   });
   updatePositions(viewObjects);
   viewObjects.nodesInRank = nodesInRank;
@@ -648,7 +664,7 @@ function updatePositions(viewObjects) {
     .attr('height',maxY+INIT_NODE_Y*2);
 
   d3.selectAll('.net').each(function(wire){
-    wire.x = d3.mean(wire.drivers.concat(wire.riders), portGlobalX);
+    //wire.x = d3.mean(wire.drivers.concat(wire.riders), portGlobalX);
     wire.yRange = d3.extent(wire.drivers.concat(wire.riders), portGlobalY);
   });
   d3.selectAll('.net').select('.verticalWire')
@@ -661,15 +677,30 @@ function updatePositions(viewObjects) {
     .attr('x2',function(port){return port.wire.x})
     .attr('y1',function(port){return portGlobalY(port);})
     .attr('y2',function(port){return portGlobalY(port);})
+  d3.selectAll('.wireDot')
+    .attr('cx',function(port){return port.wire.x;})
+    .attr('cy',function(port){return portGlobalY(port);})
+    .attr('visibility', function(port){
+      if (portGlobalY(port) == port.wire.yRange[0]) {
+        port.wire.yRange[0]-=0.01;
+        return "hidden";
+      }
+      if (portGlobalY(port) == port.wire.yRange[1]) {
+        port.wire.yRange[1]+=0.01;
+        return "hidden";
+      }
+      return "visible";
+    });
 }
 
 // these are the force constants
-var RANK_OFFSET = 30;
+var RANK_OFFSET = 120;
 var RANK_PULL = 2.0;
 var NET_PULL = 0.3;
 var PULL_UP = 0.1;
 var STARTING_HEAT = 0.2;
 var CHARGE = -6000;
+var WIRE_OFFSET = 20;
 
 // tries to push all nodes an ideal distance away from connected nodes
 // note: this doesn't preserve newtons third law and so it tends to pull
@@ -678,23 +709,23 @@ function pullNodesTowardRank(alpha) {
   d3.selectAll('.net').each(function(wire){
     var targetX = 0;
     if (wire.drivers.length>0) {
-      targetX = d3.max(wire.drivers, portGlobalX)+RANK_OFFSET;
+      targetX = d3.max(wire.drivers, function(port){return port.parentNode.x;})+RANK_OFFSET;
     } else {
-      targetX = d3.mean(wire.riders, portGlobalX);
+      targetX = d3.mean(wire.riders, function(port){return port.parentNode.x;});
     }
     wire.riders.forEach(function(port){
       if (port.parentNode.fixed) return;
-      var dx = targetX - portGlobalX(port);
+      var dx = targetX - port.parentNode.x;
       port.parentNode.x += dx*alpha*RANK_PULL;
     });
     if (wire.riders.length>0) {
-      targetX = d3.min(wire.riders, portGlobalX)-RANK_OFFSET;
+      targetX = d3.min(wire.riders, function(port){return port.parentNode.x;})-RANK_OFFSET;
     } else {
-      targetX = d3.mean(wire.drivers, portGlobalX);
+      targetX = d3.mean(wire.drivers, function(port){return port.parentNode.x;});
     }
     wire.drivers.forEach(function(port){
       if (port.parentNode.fixed) return;
-      var dx = targetX - portGlobalX(port);
+      var dx = targetX - port.parentNode.x;
       port.parentNode.x += dx*alpha*RANK_PULL;
     });
   });
@@ -765,11 +796,55 @@ function pullNodesUp(alpha){
   });
 }
 
+function pushWires(alpha){
+  d3.selectAll('.net').each(function(wire){
+    rightmostSource = null;
+    wire.drivers.forEach(function(s)
+    {
+      if (rightmostSource==null || portGlobalX(s)>portGlobalX(rightmostSource))
+        rightmostSource = s;  
+    });
+    if (rightmostSource!=null)
+    {
+      dx = wire.x - portGlobalX(rightmostSource)-WIRE_OFFSET;
+      wire.x -= dx*0.05;
+    }
+    leftmostSink = null;
+    wire.riders.forEach(function(s)
+    {
+      if (leftmostSink==null || portGlobalX(s)<portGlobalX(leftmostSink))
+        leftmostSink = s;
+    });
+    if (leftmostSink!=null)
+    {
+      dx = wire.x - portGlobalX(leftmostSink)+WIRE_OFFSET;
+      wire.x -= dx*0.05;
+    }
+    // vertical wire segments repulse each other
+    // We max out the force so it's easy to overpower
+    wires.forEach(function(wire2)
+    {
+      if (wire==wire2)
+        return;
+      if (wire.yRange[0]>wire2.yRange[1])
+        return;
+      if (wire.yRange[1]<wire2.yRange[0])
+        return;
+      force = 3/(wire.x - wire2.x);
+      force = d3.min([0.3,force]);
+      force = d3.max([-0.3,force]);
+      wire.x += force;
+      wire2.x -= force;
+    });
+  });
+}
+
 function tick(e) {
   //forces
   pullNodesUp(e.alpha);
   pullNodesTowardRank(e.alpha);
   pullNodesTowardNet(e.alpha);
+  pushWires(e.alpha);
   //constraints
   straightenDummies();
   keepNodesInView();
