@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>YosysJS Diagrams</title>
+<style type="text/css" media="screen">
+    body {
+        background-color: #363733;
+    }
+    #editor { 
+        display: block;
+        margin: auto;
+        width: 100%;
+        height: 500px;
+        border: 2px solid #161713;
+    }
+    #container {
+        margin:auto;
+        width: 800px;
+    }
+    #controls {
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    #viewerContainer {
+        text-align: center;
+        overflow: auto;
+    }
+    #viewer {
+        background-color: #eee;
+        border: 2px solid #161713;
+    }
+    .nodeBody
+    {
+       stroke:#000;
+       fill-opacity:0;
+    }
+    .portStem
+    {
+       stroke:#000;
+    }
+    text
+    {
+        font-size: 10px;
+    }
+    .inPortLabel
+    {
+        text-anchor: end;
+    }
+    .nodeLabel
+    {
+        text-anchor: middle;
+    }
+    .net
+    {
+        stroke:#000;
+    }
+</style>
+</head>
+<body>
+<div id="container">
+<div id="editor">// borrowed with some modifications from
+// http://www.ee.ed.ac.uk/~gerard/Teach/Verilog/manual/Example/lrgeEx2/cooley.html
+module up3down5(clock, data_in, up, down, carry_out, borrow_out, count_out, parity_out);
+
+input [8:0] data_in;
+input clock, up, down;
+
+output reg [8:0] count_out;
+output reg carry_out, borrow_out, parity_out;
+
+reg [9:0] cnt_up, cnt_dn;
+reg [8:0] count_nxt;
+
+always @(posedge clock)
+begin
+    cnt_dn = count_out - 3'b 101;
+    cnt_up = count_out + 2'b 11;
+
+    case ({up,down})
+        2'b 00 : count_nxt = data_in;
+        2'b 01 : count_nxt = cnt_dn;
+        2'b 10 : count_nxt = cnt_up;
+        2'b 11 : count_nxt = count_out;
+        default : count_nxt = 9'bX;
+    endcase
+
+    parity_out  <= ^count_nxt;
+    carry_out   <= up & cnt_up[9];
+    borrow_out  <= down & cnt_dn[9];
+    count_out   <= count_nxt;
+end
+
+endmodule</div>
+<div id="controls">
+<input type="button" value="Show me!" onclick="synthesizeVerilog()" \>
+</div>
+<div id="viewerContainer">
+<svg id="viewer">
+</svg>
+</div>
+</div>
+    
+<script src="ace/ace.js" type="text/javascript" charset="utf-8"></script>
+<script type="text/javascript" src="yosysjs.js"></script>
+<script type="text/javascript" src="d3.min.js" charset="utf-8"></script>
+<script type="text/javascript" src="splitjoins.js" charset="utf-8"></script>
+<script type="text/javascript" src="final.js" charset="utf-8"></script>
+
+<script>
+    var ys = YosysJS.create_worker(on_ys_ready);
+    ys.verbose(true);
+    var editor = ace.edit("editor");
+    editor.setTheme("ace/theme/monokai");
+    editor.getSession().setMode("ace/mode/verilog");
+</script>
+</body>
+</html>

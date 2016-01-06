@@ -1,0 +1,805 @@
+// gets the verilog from the editor and kicks off yosys
+function synthesizeVerilog()
+{
+    ys.write_file("input.v", editor.getValue());
+    ys.run('design -reset; read_verilog input.v; proc; opt_clean; write_json output.json', handle_run_errors);
+    ys.read_file('output.json', drawModule);
+}
+
+// processes the module json and creates View objects
+function drawModule(moduleString)
+{
+    // The input data is static. No user interaction will
+    // change it, and it will not need to propagate any additional
+    // information to the view. So we're going to essentially
+    // transform it into a structure (controller? view model? presenter?)
+    // that holds information in a form that is easy for the view
+    // to access.
+    var modules = toArray(JSON.parse(moduleString).modules);
+    var module = getReformattedModule(modules[0]);
+    addConstants(module);
+    addSplitsJoins(module);
+    createWires(module);
+    assignDepths(module);
+    addDummies(module);
+    
+    // at this point the module has enough information
+    // to create a skeleton for the viewObjects
+    // the viewObjects carry references to their models
+    var viewObjects = createViewObjects(module);
+
+    // draws viewObjects and positions interior elements
+    buildNodes(viewObjects);
+    buildWires(viewObjects);
+    
+    // take a ballpark guess to put nodes in about the right place
+    assignNodeInitialPosition(viewObjects);
+
+    // this kicks off the animation loop.
+    var forces = createForces(viewObjects);
+}
+
+// returns a reformatted module
+function getReformattedModule(module)
+{
+    var ports= toArray(module.ports);
+    var flatModule = 
+    {
+        'inputPorts' : ports.filter(function(p){p.type='$_inputExt_';return p.direction=='input'}),
+        'outputPorts': ports.filter(function(p){p.type='$_outputExt_';return p.direction=='output'}),
+        'cells':toArray(module.cells)
+    };
+    flatModule.cells.forEach(function(c)
+    {
+        c.inputPorts = getCellPortList(c,"input");
+        c.outputPorts = getCellPortList(c,"output");
+    });
+    flatModule.inputPorts.forEach(function(p)
+    {
+        p.inputPorts = [];
+        p.outputPorts = [{'key':p.key,'value':p.bits}];
+    });
+    flatModule.outputPorts.forEach(function(p)
+    {
+        p.inputPorts = [{'key':p.key,'value':p.bits}];
+        p.outputPorts = [];
+    });
+    flatModule.nodes = flatModule.inputPorts
+                        .concat(flatModule.outputPorts)
+                        .concat(flatModule.cells);
+    return flatModule;
+}
+
+// converts input ports with constant assignments to constant nodes
+function addConstants(module)
+{
+    // find the maximum signal number
+    var maxNum=-1;
+    module.nodes.forEach(function(n)
+    {
+        n.outputPorts.forEach(function(p) {
+        maxNum = d3.max([maxNum,d3.max(p.value)])
+        });
+    });
+
+    // add constants to cells
+    module.nodes.forEach(function(n)
+    {
+        n.inputPorts.forEach(function(p)
+        {
+            name = "";
+            constants = [];
+            for (var i in p.value) {
+                if (p.value[i]<2)
+                {
+                    maxNum += 1;
+                    name+=p.value[i];
+                    p.value[i] = maxNum;
+                    constants.push(maxNum);
+                }
+                else if (constants.length>0)
+                {
+                    module.cells.push(
+                    {
+                      "key": '$constant_'+arrayToBitstring(constants),
+                      "hide_name": 1,
+                      "type": name,
+                      "inputPorts":[],
+                      "outputPorts":[{'key':'Y','value':constants}]
+                    });
+                    name='';
+                    constants = [];
+                }
+            }
+            if (constants.length>0)
+            {
+                module.cells.push(
+                {
+                    "key": '$constant_'+arrayToBitstring(constants),
+                    "hide_name": 1,
+                    "type": name,
+                    "inputPorts":[],
+                    "outputPorts":[{'key':'Y','value':constants}]
+                });
+            }
+        });
+    });
+    module.nodes = module.inputPorts
+                        .concat(module.outputPorts)
+                        .concat(module.cells);
+}
+
+// solves for minimal bus splits and joins and adds them to module
+function addSplitsJoins(module)
+{
+    var allInputs = [];
+    var allOutputs = [];
+    module.nodes.forEach(function(n) 
+    {
+        n.inputPorts.forEach(function(i)
+        {
+            allInputs.push(','+i.value.join()+',');
+        });
+        n.outputPorts.forEach(function(i)
+        {
+            allOutputs.push(','+i.value.join()+',');
+        });
+    });
+
+    allInputsCopy = allInputs.slice();
+    var splits = {};
+    var joins = {};
+    for (var i in allInputs) {
+        gather(allOutputs, allInputsCopy, allInputs[i], 0, allInputs[i].length, splits, joins);
+    }
+
+    for (var join in joins) {
+        var signals = join.slice(1,-1).split(',');
+        for (var i in signals) {
+          signals[i] = Number(signals[i])
+        }
+        var outPorts = [{'key':'Y','value':signals}];
+        var inPorts = [];
+        for (var i in joins[join]) {
+            var name = joins[join][i];
+            var value = getBits(signals, name);
+          inPorts.push({'key':name,'value':value});
+        }
+        module.cells.push({"key":'$join$'+join,
+          "hide_name": 1,
+          "type": "$_join_",
+          "inputPorts":inPorts,
+          "outputPorts":outPorts});
+    }
+
+    for (var split in splits) {
+        signals = split.slice(1,-1).split(',');
+        for (var i in signals) {
+          signals[i] = Number(signals[i])
+        }
+        var inPorts = [{'key':'A','value':signals}];
+        var outPorts = [];
+        for (var i in splits[split]) {
+            var name = splits[split][i];
+            var value = getBits(signals, name);
+          outPorts.push({'key':name,'value':value});
+        }
+        module.cells.push({"key":'$split$'+split,
+          "hide_name": 1,
+          "type": "$_split_",
+          "inputPorts":inPorts,
+          "outputPorts":outPorts});
+    }
+    //refresh nodes
+    module.nodes = module.inputPorts
+                    .concat(module.outputPorts)
+                    .concat(module.cells);
+}
+
+// iterates ports to create wire objects and add them to module
+function createWires(module)
+{
+    nets= {}
+    module.nodes.forEach(function(n) 
+    {
+        var nodeName = n.key;
+        for (var i in n.inputPorts)
+        {
+            var port = n.inputPorts[i];
+            port.parentNode = n;
+            addToDefaultDict(nets,arrayToBitstring(port.value),port);
+        }
+    });
+    wires = [];
+    module.nodes.forEach(function(n) 
+    {
+        var nodeName = n.key;
+        for (var i in n.outputPorts)
+        {
+            var port = n.outputPorts[i];
+            port.parentNode = n;
+            riders = nets[arrayToBitstring(port.value)];
+            var wire = {'drivers': [port], 'riders': riders};
+            wires.push(wire);
+            port.wire = wire;
+            riders.forEach(function(r)
+            {
+                r.wire = wire;
+            });
+        }
+    });
+    module.wires = wires;
+}
+
+// tags feedback ports and assigns depth rank numbers to each node
+function assignDepths(module)
+{
+    // find all root nodes (only inputs)
+    var rootNodes = module.nodes.filter(function(d) {
+        return d.inputPorts.length == 0;
+    });
+
+    var leafNodes = module.nodes.filter(function(d) {
+        return d.outputPorts.length == 0;
+    });
+
+    // DFS to detect cycles
+    function visitDependents(n, visited)
+    {
+        visited[n.key] = true;
+        n.outputPorts.forEach(function(p)
+        {
+            p.wire.riders.forEach(function(r)
+            {
+                if (!(r.parentNode.key in visited))
+                {
+                    visitDependents(r.parentNode, visited);
+                } 
+                else
+                {
+                    if (n.type == '$dff')
+                    {
+                        r.feedback = true;
+                    }
+                }
+            });
+        });
+    }
+
+    rootNodes.forEach(function(n)
+    {
+        visitDependents(n,{});
+    });
+
+    // we have now tagged all feedback paths
+
+    // Do a longest path algo to assign nodes an rdepth
+    var greatestRDepth = 0;
+    function reverseDFS(node, rdepth)
+    {
+        if (node.rdepth==undefined || rdepth>node.rdepth)
+        {
+            node.rdepth = rdepth;
+            if (rdepth>greatestRDepth)
+                greatestRDepth=rdepth;
+            node.inputPorts.forEach(function(p)
+            {
+                if (p.feedback != true)
+                    reverseDFS(p.wire.drivers[0].parentNode, rdepth+1);
+            });
+        }
+    }
+    leafNodes.forEach(function(n)
+    {
+        reverseDFS(n,0);
+    });
+
+    // and then do it again from the opposite side
+
+    function DFS(node, depth)
+    {
+        if (node.depth==undefined || depth>node.depth)
+        {
+            node.depth = depth;
+            node.outputPorts.forEach(function(p)
+            {
+                p.wire.riders.forEach(function(r)
+                {
+                    if (r.feedback != true)
+                        DFS(r.parentNode, depth+1);
+                });
+            });
+        }
+    }
+    rootNodes.forEach(function(n)
+    {
+        DFS(n,greatestRDepth-n.rdepth);
+    });
+}
+
+// adds dummy nodes to all links that cross multiple ranks
+function addDummies(module)
+{
+    var allDummies = [];
+
+    module.wires.forEach(function(w)
+    {
+        w.riders.forEach(function(r)
+        {
+            insertDummies(w.drivers[0], r, allDummies, module.wires);
+        });
+    });
+
+    module.nodes = module.nodes.concat(allDummies);
+    module.dummies = allDummies;
+}
+
+// converts an associative array to an indexed array
+// embeds key as a member named "key"
+function toArray(assoc)
+{
+    var map = d3.map(assoc)
+    map.forEach(function (k, v){v.key=k});
+    return map.values();
+}
+
+// returns an array of ports that are going a specific direction
+// the elements in this array are obects whose members are key and value
+// where key is the port name and value is the connection array
+function getCellPortList(cell, direction)
+{
+    return d3.map(cell.connections).entries().filter(function(d)
+    {
+        return cell.port_directions[d.key] == direction;
+    });
+}
+
+// doesn't do much yet
+function on_ys_ready()
+{
+    console.log('***ys ready*****');
+}
+
+// we alert with error messages
+function handle_run_errors(logmsg, errmsg)
+{
+    if (errmsg != "")
+    {
+        window.alert(errmsg);
+    }
+}
+
+// insert the correct number of dummy nodes between the two ports
+function insertDummies(driverPort, riderPort, dummies, wires)
+{
+    var numberOfDummies = riderPort.parentNode.depth - driverPort.parentNode.depth - 1;
+    if (numberOfDummies==0)
+        return;
+    // disconnect
+    driverPort.wire.riders = driverPort.wire.riders.filter(function(r)
+        {
+            return r!=riderPort;
+        });
+    var lastWire = driverPort.wire;
+    if (numberOfDummies>0)
+    {
+        var dummyNumber=0;
+        while (dummyNumber<numberOfDummies && lastWire.nextLevel != undefined)
+        {
+            lastWire = lastWire.nextLevel;
+            dummyNumber+=1;
+        }
+        for (;dummyNumber<numberOfDummies;dummyNumber++)
+        {
+            var dummy = 
+            {
+                'type':'$_dummy_',
+                'inputPorts' : [{'wire':lastWire,'key':'A'}],
+                'outputPorts': [{'wire':{'riders':[]},'key':'Y'}],
+                'depth' : driverPort.parentNode.depth+dummyNumber+1
+            }
+            dummy.inputPorts[0].parentNode = dummy;
+            dummy.outputPorts[0].parentNode = dummy;
+            dummy.outputPorts[0].wire.drivers = [dummy.outputPorts[0]];
+            lastWire.riders.push(dummy.inputPorts[0]);
+            lastWire.nextLevel = dummy.outputPorts[0].wire;
+            lastWire = dummy.outputPorts[0].wire;
+            dummies.push(dummy);
+            wires.push(lastWire);
+        }
+        riderPort.wire = lastWire;
+        lastWire.riders.push(riderPort);
+    }
+    else // feedback
+    {
+        numberOfDummies=-numberOfDummies;
+        var dummyNumber=0;
+        while (dummyNumber<numberOfDummies && lastWire.previousLevel != undefined)
+        {
+            lastWire = lastWire.previousLevel;
+            dummyNumber+=1;
+        }
+        for (;dummyNumber<numberOfDummies;dummyNumber++)
+        {
+            var dummy =
+            {
+                'type':'$_dummy_',
+                'inputPorts' : [{'wire':{'drivers':[]},'key':'A'}],
+                'outputPorts': [{'wire':lastWire,'key':'Y'}],
+                'depth':driverPort.parentNode.depth-dummyNumber
+            }
+            dummy.inputPorts[0].parentNode = dummy;
+            dummy.outputPorts[0].parentNode = dummy;
+            dummy.inputPorts[0].wire.riders = [dummy.inputPorts[0]];
+            lastWire.drivers.push(dummy.outputPorts[0]);
+            lastWire.previousLevel = dummy.inputPorts[0].wire;
+            lastWire = dummy.inputPorts[0].wire;
+            dummies.push(dummy);
+            wires.push(lastWire);
+        }
+        lastWire.riders.push(riderPort);
+        riderPort.wire = lastWire;
+    }
+}
+
+// finds the svg viewer and creates svg skeleton
+function createViewObjects(module) {
+    var viewer = d3.select('#viewer');
+    viewer.selectAll('*').remove();
+
+    var cellViews = viewer.selectAll('.cell')
+      .data(module.cells)
+      .enter().append('g')
+        .attr('class','cell node');
+
+    var dummyViews = viewer.selectAll('.dummy')
+      .data(module.dummies)
+      .enter().append('g')
+        .attr('class','node dummy');
+
+    var inputExtViews = viewer.selectAll('.inputExt')
+      .data(module.inputPorts)
+      .enter().append('g')
+        .attr('class','inputExt external node');
+
+    var outputExtViews = viewer.selectAll('.outputExt')
+      .data(module.outputPorts)
+      .enter().append('g')
+        .attr('class','outputExt external node');
+
+    d3.selectAll('.node').selectAll('.outport')
+      .data(function(node){return node.outputPorts;})
+        .enter().append('g')
+        .attr('class','port outport');
+
+    d3.selectAll('.node').selectAll('.inport')
+      .data(function(node){return node.inputPorts;})
+        .enter().append('g')
+        .attr('class','port inport');
+
+    var wireViews = viewer.selectAll('.net')
+      .data(wires)
+      .enter().append('g')
+        .attr('class', 'net');
+
+    return {
+      'viewer':viewer,
+      'cells':cellViews,
+      'wires':wireViews,
+      'dummies':dummyViews,
+      'inputExts':inputExtViews,
+      'outputExts':outputExtViews,
+      'nodes':d3.selectAll('.node')};
+}
+
+// positioning constants
+var INIT_RANK_SPAN = 150;
+var INIT_NODE_X_MARGIN = 50;
+var INIT_NODE_Y = 50;
+var NODE_WIDTH = 30;
+var EDGE_PORT_GAP = 10;
+var PORT_GAP = 20;
+var NODE_GAP = 80;
+var STEM_LENGTH = 30;
+var PORT_LABEL_X = 25;
+var PORT_LABEL_Y = -3;
+var NODE_LABEL_X = 0;
+var NODE_LABEL_Y = -4;
+
+// calculate how tall a generic cell should be from the number of input and output ports
+function genericHeight (cell)
+{
+    gaps = d3.max([cell.inputPorts.length, cell.outputPorts.length])-1;
+    return gaps*PORT_GAP+2*EDGE_PORT_GAP;
+}
+
+//TODO: draw a crapload of SVG symbols
+var shapes = {
+  '$_generic_' : function(viewObject) {
+    viewObject.append('rect')
+      .attr('class','nodeBody')
+      .attr('width',NODE_WIDTH)
+      .attr('height',genericHeight)
+      .attr('x',-NODE_WIDTH/2)
+      .attr('y',0);
+    viewObject.append('text')
+      .attr('class','nodeLabel')
+      .text(function(d){return d.depth})
+      .attr('x',NODE_LABEL_X)
+      .attr('y',NODE_LABEL_Y);
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    inPorts.append('text')
+      .attr('class','inPortLabel')
+      .text(function(port){return port.key;})
+      .attr('x',PORT_LABEL_X)
+      .attr('y',PORT_LABEL_Y);
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (NODE_WIDTH/2+STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    outPorts.append('text')
+      .attr('class','outPortLabel')
+      .text(function(d){return d.key;})
+      .attr('x',-PORT_LABEL_X)
+      .attr('y',PORT_LABEL_Y);
+  }
+}
+
+// draws nodes as SVG objects.
+// all viewObjects are empty groups
+function buildNodes(viewObjects) {
+  viewObjects.nodes.each(function(d){
+    if (shapes[d.type]) {
+      shapes[d.type](d3.select(this));
+    } else {
+      shapes['$_generic_'](d3.select(this));
+    }
+  });
+}
+
+// creates all of the wire view objects
+function buildWires(viewObjects) {
+  viewObjects.wires.append('line')
+    .attr('class','verticalWire')
+
+  viewObjects.wires.selectAll('.driverWire')
+    .data(function(d){return d.drivers;})
+    .enter().append('line')
+      .attr('class','driverWire wire');
+
+  viewObjects.wires.selectAll('.riderWire')
+    .data(function(d){return d.riders;})
+    .enter().append('line')
+      .attr('class','riderWire wire');
+
+  viewObjects.wires.selectAll('.wireDot')
+    .data(function(d){return d.drivers.concat(d.riders);})
+    .enter().append('circle')
+      .attr('class','wireDot');
+}
+
+// best guess placement initially. The forces will untangle it.
+function assignNodeInitialPosition(viewObjects) {
+
+  var nodesInRank=[];
+  var maxNodesInRank=1;
+
+  viewObjects.nodes.each(function(d){
+    d.x = d.depth*INIT_RANK_SPAN + INIT_NODE_X_MARGIN;
+    if (nodesInRank[d.depth]!=undefined) {
+      nodesInRank[d.depth].push(d);
+      if (nodesInRank[d.depth].length>maxNodesInRank)
+        maxNodesInRank = nodesInRank[d.depth].length;
+    } else {
+      nodesInRank[d.depth]=[d];
+    }
+    d.y = INIT_NODE_Y+(nodesInRank[d.depth].length-1)*NODE_GAP;
+  });
+  updatePositions(viewObjects);
+  viewObjects.nodesInRank = nodesInRank;
+  viewObjects.maxNodesInRank = maxNodesInRank;
+}
+
+// finds port global X using it's local X and parent X
+function portGlobalX(port)
+{
+  return port.x+port.parentNode.x;
+}
+
+// finds port global Y using it's local Y and parent Y
+function portGlobalY(port)
+{
+  return port.y+port.parentNode.y;
+}
+
+// this updates the view objects from their model objects
+function updatePositions(viewObjects) {
+  var maxX = 0;
+  var maxY = 0;
+  d3.selectAll('.node')
+    .attr('transform',function(d){
+      if (d.x>maxX) maxX = d.x;
+      if (d.y>maxY) maxY = d.y;
+      return 'translate('+d.x+','+d.y+')';
+    })
+  d3.select('#viewer')
+    .attr('width',maxX+INIT_NODE_X_MARGIN)
+    .attr('height',maxY+INIT_NODE_Y*2);
+
+  d3.selectAll('.net').each(function(wire){
+    wire.x = d3.mean(wire.drivers.concat(wire.riders), portGlobalX);
+    wire.yRange = d3.extent(wire.drivers.concat(wire.riders), portGlobalY);
+  });
+  d3.selectAll('.net').select('.verticalWire')
+    .attr('x1',function(wire){return wire.x})
+    .attr('x2',function(wire){return wire.x})
+    .attr('y1',function(wire){return wire.yRange[0]})
+    .attr('y2',function(wire){return wire.yRange[1]})
+  d3.selectAll('.net').selectAll('.wire')
+    .attr('x1',function(port){return portGlobalX(port);})
+    .attr('x2',function(port){return port.wire.x})
+    .attr('y1',function(port){return portGlobalY(port);})
+    .attr('y2',function(port){return portGlobalY(port);})
+}
+
+// these are the force constants
+var RANK_OFFSET = 30;
+var RANK_PULL = 2.0;
+var NET_PULL = 0.3;
+var PULL_UP = 0.1;
+var STARTING_HEAT = 0.2;
+var CHARGE = -6000;
+
+// tries to push all nodes an ideal distance away from connected nodes
+// note: this doesn't preserve newtons third law and so it tends to pull
+// the graph in one horizontal direction (usually left)
+function pullNodesTowardRank(alpha) {
+  d3.selectAll('.net').each(function(wire){
+    var targetX = 0;
+    if (wire.drivers.length>0) {
+      targetX = d3.max(wire.drivers, portGlobalX)+RANK_OFFSET;
+    } else {
+      targetX = d3.mean(wire.riders, portGlobalX);
+    }
+    wire.riders.forEach(function(port){
+      if (port.parentNode.fixed) return;
+      var dx = targetX - portGlobalX(port);
+      port.parentNode.x += dx*alpha*RANK_PULL;
+    });
+    if (wire.riders.length>0) {
+      targetX = d3.min(wire.riders, portGlobalX)-RANK_OFFSET;
+    } else {
+      targetX = d3.mean(wire.drivers, portGlobalX);
+    }
+    wire.drivers.forEach(function(port){
+      if (port.parentNode.fixed) return;
+      var dx = targetX - portGlobalX(port);
+      port.parentNode.x += dx*alpha*RANK_PULL;
+    });
+  });
+}
+
+// all nets pull toward center of gravity
+function pullNodesTowardNet(alpha) {
+  d3.selectAll('.net').each(function(wire){
+
+    var allPorts = wire.drivers.concat(wire.riders);
+    var targetY = d3.mean(allPorts, portGlobalY);
+    allPorts.forEach(function(port) {
+        if (port.parentNode.fixed) return;
+        var dy = targetY - portGlobalY(port);
+        port.parentNode.y += dy * alpha * NET_PULL;
+    });
+  });
+}
+
+// we constrain all dummies to be straight
+function straightenDummies(){
+  d3.selectAll('.dummy').each(function(node){
+    var chain = [node];
+    var currNode = node;
+    while(currNode.inputPorts[0].wire.drivers.length>0 && currNode.inputPorts[0].wire.drivers[0].parentNode.type=='$_dummy_')
+    {
+        currNode = currNode.inputPorts[0].wire.drivers[0].parentNode;
+        chain.push(currNode);
+    }
+    var currNode = node;
+    while(currNode.outputPorts[0].wire.riders.length>0 && currNode.outputPorts[0].wire.riders[0].parentNode.type=='$_dummy_')
+    {
+        currNode = currNode.outputPorts[0].wire.riders[0].parentNode;
+        chain.push(currNode);
+    }
+    var sum = 0;
+    chain.forEach(function(n)
+    {
+        sum += n.y;
+    });
+    chain.forEach(function(n)
+    {
+      if (n.fixed) return;
+        n.y = sum/chain.length;
+    });
+  });
+}
+
+
+// we constrain nodes to always have a positive position (with a margin)
+function keepNodesInView()
+{
+  d3.selectAll('.node').each(function(node){
+    if (node.x<INIT_NODE_X_MARGIN) {
+      node.x=INIT_NODE_X_MARGIN;
+    }
+    if (node.y<INIT_NODE_X_MARGIN) {
+      node.y = INIT_NODE_X_MARGIN;
+    }
+  });
+}
+
+// we add a sort of antigravity to pull everything upward
+// TODO: add a leftward force
+function pullNodesUp(alpha){
+  d3.selectAll('.node').each(function(node){
+    node.y-=alpha*PULL_UP;
+  });
+}
+
+function tick(e) {
+  //forces
+  pullNodesUp(e.alpha);
+  pullNodesTowardRank(e.alpha);
+  pullNodesTowardNet(e.alpha);
+  //constraints
+  straightenDummies();
+  keepNodesInView();
+  //update view
+  updatePositions();
+}
+
+// use d3's force algorithm.
+// no gravity and nodes should only repel nodes within their rank
+function createForces(viewObjects) {
+  var forces = []
+  viewObjects.nodesInRank.forEach(function(rank){
+    var force = d3.layout.force()
+      .nodes(rank)
+      .gravity(0)
+      .charge(CHARGE)
+      .on('tick',tick);
+    var drag = force.drag();
+    drag.on("dragstart", function(node){
+      node.fixed = true;
+    });
+    drag.on("drag",function(node){
+      forces.forEach(function(f){f.resume()});
+    });
+    force
+      .start();
+    force.alpha(STARTING_HEAT);
+    forces.push(force);
+    viewObjects.nodes.filter(function(node){return node.depth==rank[0].depth})
+      .call(drag);
+  });
+  return forces;
+}
