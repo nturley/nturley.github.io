@@ -30,14 +30,36 @@
         background-color: #eee;
         border: 2px solid #161713;
     }
+    .selection
+    {
+        position:absolute;
+        background:rgba(100,100,200,0.5);
+    }
     .nodeBody
     {
        stroke:#000;
        fill-opacity:0;
     }
+    .splitBody
+    {
+       stroke:#000;
+
+    }
+    .guideBody
+    {
+       stroke:#000;
+       stroke-dasharray: 5 5;
+       fill-opacity:0;
+    }
     .portStem
     {
        stroke:#000;
+    }
+    .symbol
+    {
+       stroke:#000;
+       stroke-width:2;
+       fill-opacity:0;
     }
     text
     {
@@ -58,8 +80,8 @@
 </style>
 </head>
 <body>
-<div id="container">
-<div id="editor">// borrowed with some modifications from
+<div id="up3down5" style="display: none;">
+// borrowed with some modifications from
 // http://www.ee.ed.ac.uk/~gerard/Teach/Verilog/manual/Example/lrgeEx2/cooley.html
 module up3down5(clock, data_in, up, down, carry_out, borrow_out, count_out, parity_out);
 
@@ -91,7 +113,45 @@ begin
     count_out   <= count_nxt;
 end
 
-endmodule</div>
+endmodule
+</div>
+<div id="up_down_counter" style="display: none;">
+//-----------------------------------------------------
+// Design Name : up_down_counter
+// File Name   : up_down_counter.v
+// Function    : Up down counter
+// Coder       : Deepak Kumar Tala
+//-----------------------------------------------------
+module up_down_counter    (
+out      ,  // Output of the counter
+up_down  ,  // up_down control for counter
+clk      ,  // clock input
+reset       // reset input
+);
+//----------Output Ports--------------
+output [7:0] out;
+//------------Input Ports-------------- 
+input up_down, clk, reset;
+//------------Internal Variables--------
+reg [7:0] out;
+//-------------Code Starts Here-------
+always @(posedge clk)
+if (reset) begin // active high reset
+  out <= 8'b0 ;
+end else if (up_down) begin
+  out <= out + 1;
+end else begin
+  out <= out - 1;
+end
+
+endmodule 
+</div>
+<div id="container">
+<select id="exampleSelector" onchange="changeExample(this)">
+  <option value="up3down5">up3down5</option>
+  <option value="up_down_counter">up_down_counter</option>
+</select>
+<div id="editor"></div>
 <div id="controls">
 <input type="button" value="Show me!" onclick="synthesizeVerilog()" \>
 </div>
@@ -108,11 +168,24 @@ endmodule</div>
 <script type="text/javascript" src="final.js" charset="utf-8"></script>
 
 <script>
+function htmlDecode(input)
+{
+  var doc = new DOMParser().parseFromString(input, "text/html");
+  return doc.documentElement.textContent;
+}
     var ys = YosysJS.create_worker(on_ys_ready);
     ys.verbose(true);
     var editor = ace.edit("editor");
+    var aceRange = ace.require('ace/range').Range;
     editor.setTheme("ace/theme/monokai");
     editor.getSession().setMode("ace/mode/verilog");
+    function changeExample(combo) {
+        var example = combo.value;
+        editor.setValue(htmlDecode(document.getElementById(example).innerHTML));
+        editor.getSelection().clearSelection();
+    }
+    changeExample(document.getElementById('exampleSelector'));
+
 </script>
 </body>
 </html>

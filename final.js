@@ -1,6 +1,7 @@
 // gets the verilog from the editor and kicks off yosys
 function synthesizeVerilog()
 {
+    editor.session.clearAnnotations();
     ys.write_file("input.v", editor.getValue());
     ys.run('design -reset; read_verilog input.v; proc; opt_clean; write_json output.json', handle_run_errors);
     ys.read_file('output.json', drawModule);
@@ -45,10 +46,12 @@ function getReformattedModule(module)
     var ports= toArray(module.ports);
     var flatModule = 
     {
-        'inputPorts' : ports.filter(function(p){p.type='$_inputExt_';return p.direction=='input'}),
-        'outputPorts': ports.filter(function(p){p.type='$_outputExt_';return p.direction=='output'}),
+        'inputPorts' : ports.filter(function(p){return p.direction=='input'}),
+        'outputPorts': ports.filter(function(p){return p.direction=='output'}),
         'cells':toArray(module.cells)
     };
+    flatModule.inputPorts.forEach(function(p){p.type="$_inputExt_";});
+    flatModule.outputPorts.forEach(function(p){p.type="$_outputExt_";});
     flatModule.cells.forEach(function(c)
     {
         c.inputPorts = getCellPortList(c,"input");
@@ -89,6 +92,7 @@ function addConstants(module)
         {
             name = "";
             constants = [];
+            var lastNode = null;
             for (var i in p.value) {
                 if (p.value[i]<2)
                 {
@@ -96,31 +100,38 @@ function addConstants(module)
                     name+=p.value[i];
                     p.value[i] = maxNum;
                     constants.push(maxNum);
+                    lastNode = n;
                 }
                 else if (constants.length>0)
                 {
-                    module.cells.push(
-                    {
-                      "key": '$constant_'+arrayToBitstring(constants),
-                      "hide_name": 1,
-                      "type": name,
-                      "inputPorts":[],
-                      "outputPorts":[{'key':'Y','value':constants}]
-                    });
+                    var constant = {
+                        "key": name.split('').reverse().join(''),
+                        "hide_name": 1,
+                        "type": '$_constant_',
+                        "inputPorts":[],
+                        "outputPorts":[{'key':'Y','value':constants}]
+                    }
+                    if (n.attributes.src) {
+                      constant.attributes ={'src':n.attributes.src};
+                    }
+                    module.cells.push(constant);
                     name='';
                     constants = [];
                 }
             }
             if (constants.length>0)
             {
-                module.cells.push(
-                {
-                    "key": '$constant_'+arrayToBitstring(constants),
+                var constant = {
+                    "key": name.split('').reverse().join(''),
                     "hide_name": 1,
-                    "type": name,
+                    "type": '$_constant_',
                     "inputPorts":[],
                     "outputPorts":[{'key':'Y','value':constants}]
-                });
+                }
+                if (lastNode.attributes.src) {
+                    constant.attributes ={'src':lastNode.attributes.src};
+                }
+                module.cells.push(constant);
             }
         });
     });
@@ -365,7 +376,11 @@ function handle_run_errors(logmsg, errmsg)
 {
     if (errmsg != "")
     {
-        window.alert(errmsg);
+      var splut = errmsg.split(':');
+      editor.session.setAnnotations([{row: Number(splut[1])-1,
+                column: 0,
+                text: splut[2],
+                type: "error"}]);
     }
 }
 
@@ -497,6 +512,7 @@ var INIT_RANK_SPAN = 150;
 var INIT_NODE_X_MARGIN = 50;
 var INIT_NODE_Y = 50;
 var NODE_WIDTH = 30;
+var HALF_NODE_WIDTH = 15;
 var EDGE_PORT_GAP = 10;
 var PORT_GAP = 20;
 var NODE_GAP = 80;
@@ -506,6 +522,22 @@ var PORT_LABEL_Y = -3;
 var NODE_LABEL_X = 0;
 var NODE_LABEL_Y = -4;
 
+var BINOP_PORT_GAP = 15;
+var BINOP_EDGE_PORT_GAP = 5;
+var BINOP_HEIGHT = 2*BINOP_EDGE_PORT_GAP+BINOP_PORT_GAP;
+
+var SPLIT_WIDTH = 5;
+
+var DFF_ARROW_X = 5;
+var DFF_ARROW_Y = 5;
+
+var STEM_CIRCLE = 5;
+
+var EQ_GAP = 5;
+var EQ_LENGTH = 10;
+var MUX_POINT_Y = 10;
+var MUX_WIDTH = 20;
+
 // calculate how tall a generic cell should be from the number of input and output ports
 function genericHeight (cell)
 {
@@ -513,7 +545,6 @@ function genericHeight (cell)
     return gaps*PORT_GAP+2*EDGE_PORT_GAP;
 }
 
-//TODO: draw a crapload of SVG symbols
 var shapes = {
   '$_dummy_' : function(viewObject) {
     var inPorts = viewObject.selectAll('.inport')
@@ -526,6 +557,505 @@ var shapes = {
         port.x = 0;
         port.y = 0;
       });
+  },
+  '$pmux' : function(viewObject) {
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(node) {
+        return 'M-'+(MUX_WIDTH/2)+',0'+
+               ' L'+(MUX_WIDTH/2)+','+MUX_POINT_Y+
+               ' L'+(MUX_WIDTH/2)+','+(EDGE_PORT_GAP*2+PORT_GAP- MUX_POINT_Y)+
+               ' L-'+(MUX_WIDTH/2)+','+(EDGE_PORT_GAP*2+PORT_GAP)+'Z';
+      });
+    viewObject.append('line')
+      .attr('class','nodeBody')
+      .attr('x1',0)
+      .attr('x2',0)
+      .attr('y1',2*PORT_GAP+EDGE_PORT_GAP)
+      .attr('y2',PORT_GAP+2*EDGE_PORT_GAP-MUX_POINT_Y/2)
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        if (port.key == 'S')
+          port.x = -STEM_LENGTH;
+        else
+          port.x = (-MUX_WIDTH/2-STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (MUX_WIDTH/2+STEM_LENGTH);
+        port.y = (EDGE_PORT_GAP+PORT_GAP/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$mux' : function(viewObject) {
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(node) {
+        return 'M-'+(MUX_WIDTH/2)+',0'+
+               ' L'+(MUX_WIDTH/2)+','+MUX_POINT_Y+
+               ' L'+(MUX_WIDTH/2)+','+(EDGE_PORT_GAP*2+PORT_GAP- MUX_POINT_Y)+
+               ' L-'+(MUX_WIDTH/2)+','+(EDGE_PORT_GAP*2+PORT_GAP)+'Z';
+      });
+    viewObject.append('line')
+      .attr('class','nodeBody')
+      .attr('x1',0)
+      .attr('x2',0)
+      .attr('y1',2*PORT_GAP+EDGE_PORT_GAP)
+      .attr('y2',PORT_GAP+2*EDGE_PORT_GAP-MUX_POINT_Y/2)
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        if (port.key == 'S')
+          port.x = -STEM_LENGTH;
+        else
+          port.x = (-MUX_WIDTH/2-STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (MUX_WIDTH/2+STEM_LENGTH);
+        port.y = (EDGE_PORT_GAP+PORT_GAP/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$and' : function(viewObject) {
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(node) {
+        return 'M0,0'+
+               ' L-'+HALF_NODE_WIDTH+',0'+
+               ' L-'+HALF_NODE_WIDTH+','+BINOP_HEIGHT+
+               ' L0,'+BINOP_HEIGHT+
+               ' A'+HALF_NODE_WIDTH+' '+(BINOP_HEIGHT/2)+ ' 0 0 0 0,0';
+      });
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        port.y = (i*BINOP_PORT_GAP+BINOP_EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port){
+        port.x = (NODE_WIDTH/2+STEM_LENGTH);
+        port.y = (BINOP_HEIGHT/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$eq' : function(viewObject) {
+    viewObject.append('circle')
+      .attr('class','nodeBody')
+      .attr('cx',0)
+      .attr('cy',BINOP_HEIGHT/2)
+      .attr('r',BINOP_HEIGHT/2);
+    viewObject.append('line')
+      .attr('class','symbol')
+      .attr('x1',-EQ_LENGTH/2)
+      .attr('y1',(BINOP_HEIGHT-EQ_GAP)/2)
+      .attr('x2',EQ_LENGTH/2)
+      .attr('y2',(BINOP_HEIGHT-EQ_GAP)/2);
+    viewObject.append('line')
+      .attr('class','symbol')
+      .attr('x1',-EQ_LENGTH/2)
+      .attr('y1',(BINOP_HEIGHT+EQ_GAP)/2)
+      .attr('x2',EQ_LENGTH/2)
+      .attr('y2',(BINOP_HEIGHT+EQ_GAP)/2);
+      
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        port.y = (i*BINOP_PORT_GAP+BINOP_EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH+STEM_CIRCLE)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port){
+        port.x = (BINOP_HEIGHT/2+STEM_LENGTH);
+        port.y = (BINOP_HEIGHT/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$reduce_xor' : function(viewObject) {
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(node) {
+        return 'M-'+HALF_NODE_WIDTH+',0'+
+               ' A'+NODE_WIDTH+' '+(BINOP_HEIGHT)+ ' 0 0 1 '+(-HALF_NODE_WIDTH)+','+BINOP_HEIGHT+
+               ' A'+NODE_WIDTH+' '+(BINOP_HEIGHT)+ ' 0 0 0 '+HALF_NODE_WIDTH+','+(BINOP_HEIGHT/2)+
+               ' A'+NODE_WIDTH+' '+(BINOP_HEIGHT)+ ' 0 0 0 '+(-HALF_NODE_WIDTH)+',0';
+      });
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(node) {
+        return 'M'+(-HALF_NODE_WIDTH-3)+',0'+
+               ' A'+NODE_WIDTH+' '+(BINOP_HEIGHT)+ ' 0 0 1 '+(-HALF_NODE_WIDTH-3)+','+BINOP_HEIGHT;
+      });
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port){
+        port.x = -STEM_LENGTH-HALF_NODE_WIDTH;
+        port.y = (BINOP_HEIGHT/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port){
+        port.x = (HALF_NODE_WIDTH+STEM_LENGTH);
+        port.y = (BINOP_HEIGHT/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$add' : function(viewObject) {
+    viewObject.append('circle')
+      .attr('class','nodeBody')
+      .attr('cx',0)
+      .attr('cy',BINOP_HEIGHT/2)
+      .attr('r',BINOP_HEIGHT/2);
+    viewObject.append('line')
+      .attr('class','symbol')
+      .attr('x1',-EQ_LENGTH/2)
+      .attr('y1',BINOP_HEIGHT/2)
+      .attr('x2',EQ_LENGTH/2)
+      .attr('y2',BINOP_HEIGHT/2);
+    viewObject.append('line')
+      .attr('class','symbol')
+      .attr('x1',0)
+      .attr('y1',(BINOP_HEIGHT-EQ_LENGTH)/2)
+      .attr('x2',0)
+      .attr('y2',(BINOP_HEIGHT+EQ_LENGTH)/2);
+      
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        port.y = (i*BINOP_PORT_GAP+BINOP_EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH+STEM_CIRCLE)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port){
+        port.x = (BINOP_HEIGHT/2+STEM_LENGTH);
+        port.y = (BINOP_HEIGHT/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$sub' : function(viewObject) {
+    viewObject.append('circle')
+      .attr('class','nodeBody')
+      .attr('cx',0)
+      .attr('cy',BINOP_HEIGHT/2)
+      .attr('r',BINOP_HEIGHT/2);
+    viewObject.append('line')
+      .attr('class','symbol')
+      .attr('x1',-EQ_LENGTH/2)
+      .attr('y1',BINOP_HEIGHT/2)
+      .attr('x2',EQ_LENGTH/2)
+      .attr('y2',BINOP_HEIGHT/2);
+      
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        port.y = (i*BINOP_PORT_GAP+BINOP_EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH+STEM_CIRCLE)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port){
+        port.x = (BINOP_HEIGHT/2+STEM_LENGTH);
+        port.y = (BINOP_HEIGHT/2);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$_split_' : function(viewObject) {
+    viewObject.append('rect')
+      .attr('class','splitBody')
+      .attr('width',SPLIT_WIDTH)
+      .attr('height',genericHeight)
+      .attr('x',-SPLIT_WIDTH/2)
+      .attr('y',0);
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-SPLIT_WIDTH/2-STEM_LENGTH);
+        port.y = genericHeight(port.parentNode)/2;
+        return 'translate('+port.x+','+port.y+')';
+      });
+
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (SPLIT_WIDTH/2+STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    outPorts.append('text')
+      .attr('class','outPortLabel')
+      .text(function(d){return d.key;})
+      .attr('x',-PORT_LABEL_X)
+      .attr('y',PORT_LABEL_Y);
+  },
+  '$_join_' : function(viewObject) {
+    viewObject.append('rect')
+      .attr('class','splitBody')
+      .attr('width',SPLIT_WIDTH)
+      .attr('height',genericHeight)
+      .attr('x',-SPLIT_WIDTH/2)
+      .attr('y',0);
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-SPLIT_WIDTH/2-STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    inPorts.append('text')
+      .attr('class','inPortLabel')
+      .text(function(port){return port.key;})
+      .attr('x',PORT_LABEL_X)
+      .attr('y',PORT_LABEL_Y);
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (SPLIT_WIDTH/2+STEM_LENGTH);
+        port.y = genericHeight(port.parentNode)/2;
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$dff' : function(viewObject) {
+    viewObject.append('rect')
+      .attr('class','nodeBody')
+      .attr('width',NODE_WIDTH)
+      .attr('height',genericHeight)
+      .attr('x',-NODE_WIDTH/2)
+      .attr('y',0);
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(node){
+        return 'M-'+HALF_NODE_WIDTH+','+(EDGE_PORT_GAP+PORT_GAP+DFF_ARROW_Y)+
+               ' L'+(-HALF_NODE_WIDTH+DFF_ARROW_X)+','+(EDGE_PORT_GAP+PORT_GAP)+
+               ' L-'+HALF_NODE_WIDTH+','+(EDGE_PORT_GAP+PORT_GAP-DFF_ARROW_Y);
+      });
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        if (port.key == 'CLK')
+          port.y = EDGE_PORT_GAP+PORT_GAP;
+        else
+          port.y = EDGE_PORT_GAP;
+        return 'translate('+port.x+','+port.y+')';
+      });
+
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (NODE_WIDTH/2+STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$_inputExt_' : function(viewObject) {
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(){
+        return 'M0,0'+
+               ' L-'+HALF_NODE_WIDTH+',0'+
+               ' L-'+HALF_NODE_WIDTH+','+(EDGE_PORT_GAP*2)+
+               ' L0,'+(EDGE_PORT_GAP*2)+
+               ' L'+HALF_NODE_WIDTH+','+EDGE_PORT_GAP+
+               ' L0,0';
+      });
+
+    viewObject.append('text')
+      .attr('class','nodeLabel')
+      .text(function(d){return d.key})
+      .attr('x',NODE_LABEL_X)
+      .attr('y',NODE_LABEL_Y);
+
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (NODE_WIDTH/2+STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$_constant_' : function(viewObject) {
+    viewObject.append('rect')
+      .attr('class','nodeBody')
+      .attr('width',NODE_WIDTH)
+      .attr('height',genericHeight)
+      .attr('x',-NODE_WIDTH/2)
+      .attr('y',0);
+
+    viewObject.append('text')
+      .attr('class','nodeLabel')
+      .text(function(d){return d.key})
+      .attr('x',NODE_LABEL_X)
+      .attr('y',NODE_LABEL_Y);
+
+    var outPorts = viewObject.selectAll('.outport')
+      .attr('transform',function(port,i){
+        port.x = (NODE_WIDTH/2+STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    outPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',-STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
+  },
+  '$_outputExt_' : function(viewObject) {
+    viewObject.append('path')
+      .attr('class','nodeBody')
+      .attr('d',function(){
+        return 'M0,0'+
+               ' L'+HALF_NODE_WIDTH+',0'+
+               ' L'+HALF_NODE_WIDTH+','+(EDGE_PORT_GAP*2)+
+               ' L0,'+(EDGE_PORT_GAP*2)+
+               ' L-'+HALF_NODE_WIDTH+','+EDGE_PORT_GAP+
+               ' L0,0';
+      });
+    viewObject.append('text')
+      .attr('class','nodeLabel')
+      .text(function(d){return d.key})
+      .attr('x',NODE_LABEL_X)
+      .attr('y',NODE_LABEL_Y);
+
+    var inPorts = viewObject.selectAll('.inport')
+      .attr('transform',function(port,i){
+        port.x = (-NODE_WIDTH/2-STEM_LENGTH);
+        port.y = (i*PORT_GAP+EDGE_PORT_GAP);
+        return 'translate('+port.x+','+port.y+')';
+      });
+    inPorts.append('line')
+          .attr('x1',0)
+          .attr('x2',STEM_LENGTH)
+          .attr('y1',0)
+          .attr('y2',0)
+          .attr('class','portStem');
   },
   '$_generic_' : function(viewObject) {
     viewObject.append('rect')
@@ -694,12 +1224,12 @@ function updatePositions(viewObjects) {
 }
 
 // these are the force constants
-var RANK_OFFSET = 120;
+var RANK_OFFSET = 100;
 var RANK_PULL = 2.0;
 var NET_PULL = 0.3;
 var PULL_UP = 0.1;
 var STARTING_HEAT = 0.2;
-var CHARGE = -6000;
+var CHARGE = -4000;
 var WIRE_OFFSET = 20;
 
 // tries to push all nodes an ideal distance away from connected nodes
@@ -852,10 +1382,12 @@ function tick(e) {
   updatePositions();
 }
 
+var markerNum=-1;
+
 // use d3's force algorithm.
 // no gravity and nodes should only repel nodes within their rank
 function createForces(viewObjects) {
-  var forces = []
+  var forces = [];
   viewObjects.nodesInRank.forEach(function(rank){
     var force = d3.layout.force()
       .nodes(rank)
@@ -865,6 +1397,15 @@ function createForces(viewObjects) {
     var drag = force.drag();
     drag.on("dragstart", function(node){
       node.fixed = true;
+      if (node.attributes && node.attributes.src)
+      {
+        if (markerNum!=-1){
+          editor.session.removeMarker(markerNum);
+        }
+        var lineNum = Number(node.attributes.src.split(':')[1])-1;
+        var line = editor.session.getDocument().getLine(lineNum);
+        markerNum = editor.session.addMarker(new aceRange(lineNum,0, lineNum,line.length), "selection", true);
+      }
     });
     drag.on("drag",function(node){
       forces.forEach(function(f){f.resume()});
@@ -875,6 +1416,14 @@ function createForces(viewObjects) {
     forces.push(force);
     viewObjects.nodes.filter(function(node){return node.depth==rank[0].depth})
       .call(drag);
+  });
+  viewObjects.nodes.on('dblclick',function(node){
+    node.fixed = false;
+    forces.forEach(function(f){f.resume()});
+    if (markerNum!=-1){
+      editor.session.removeMarker(markerNum);
+      markerNum=-1;
+    }
   });
   return forces;
 }
