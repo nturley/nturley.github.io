@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+.wire
+{
+   stroke-width:2;
+   stroke-linecap:round;
+}
+.nodeBody
+{
+   stroke:#000;
+   fill-opacity:0;
+   stroke-width:2;
+}
+text
+{
+   stroke:none;
+   fill-opacity:100;
+   fill:#000;
+   font-size: 40px;
+   text-anchor: middle;
+   font-weight: bold;
+}
+</style>
+</head>
+   <body style="-moz-user-select: none; -webkit-user-select: none; -ms-user-select:none; user-select:none;-o-user-select:none;"
+ unselectable="on"
+ onselectstart="return false;"
+ onmousedown="return false;">
+      <h1> Step 1: Tag Feedback Edges</h1>
+      <ul>
+      <li>
+         If you ignore or reverse these edges it produces a directed, acyclical graph (DAG)
+      </li>
+      <li>
+         Which cycles to favor as feedback is domain specific
+         <ul>
+         <li>
+            LabVIEW favors feedback nodes
+         </li>
+         <li>
+            Digital schematics favor flip flops
+         </li>
+         <li>
+            A lot of implementations try to tag as few as possible
+         </li>
+      </li>
+      </ul>
+      <li>
+      Which edge is tagged as feedback will change how the diagram looks
+      </li>
+      </ul>
+      <svg id="viewer">
+      </svg><br/>Click the diagram to switch which edge is tagged as feedback<br />
+      <a href="rankAnim.html">Next</a>
+      <script type="text/javascript" src="d3.min.js" charset="utf-8"></script>
+      <script type="text/javascript" src="script.js" charset="utf-8"></script>
+   </body>
+</html>
