@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>YosysJS KlayJS</title>
+<style type="text/css" media="screen">
+    body {
+        background-color: #363733;
+    }
+    #editor {
+        display: block;
+        margin: auto;
+        width: 100%;
+        height: 500px;
+        border: 2px solid #161713;
+    }
+    #container {
+        margin:auto;
+        width: 900px;
+    }
+    #controls {
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    #viewerContainer {
+        text-align: center;
+        overflow: auto;
+    }
+    #viewer {
+        background-color: #eee;
+        border: 2px solid #161713;
+    }
+    .selection
+    {
+        position:absolute;
+        background:rgba(100,100,200,0.5);
+    }
+    .nodeBody
+    {
+       stroke:#000;
+       fill-opacity:0;
+    }
+    .splitBody
+    {
+       stroke:#000;
+
+    }
+    .guideBody
+    {
+       stroke:#000;
+       stroke-dasharray: 5 5;
+       fill-opacity:0;
+    }
+    .portStem
+    {
+       stroke:#000;
+    }
+    .symbol
+    {
+       stroke:#000;
+       stroke-width:2;
+       fill-opacity:0;
+    }
+    text
+    {
+        font-size: 10px;
+    }
+    .inPortLabel
+    {
+        text-anchor: end;
+    }
+    .nodeLabel
+    {
+        text-anchor: middle;
+    }
+    .net
+    {
+        stroke:#000;
+    }
+</style>
+</head>
+<body>
+<div id="up3down5" style="display: none;">
+// borrowed with some modifications from
+// http://www.ee.ed.ac.uk/~gerard/Teach/Verilog/manual/Example/lrgeEx2/cooley.html
+module up3down5(clock, data_in, up, down, carry_out, borrow_out, count_out, parity_out);
+
+input [8:0] data_in;
+input clock, up, down;
+
+output reg [8:0] count_out;
+output reg carry_out, borrow_out, parity_out;
+
+reg [9:0] cnt_up, cnt_dn;
+reg [8:0] count_nxt;
+
+always @(posedge clock)
+begin
+    cnt_dn = count_out - 3'b 101;
+    cnt_up = count_out + 2'b 11;
+
+    case ({up,down})
+        2'b 00 : count_nxt = data_in;
+        2'b 01 : count_nxt = cnt_dn;
+        2'b 10 : count_nxt = cnt_up;
+        2'b 11 : count_nxt = count_out;
+        default : count_nxt = 9'bX;
+    endcase
+
+    parity_out  <= ^count_nxt;
+    carry_out   <= up & cnt_up[9];
+    borrow_out  <= down & cnt_dn[9];
+    count_out   <= count_nxt;
+end
+
+endmodule
+</div>
+<div id="up_down_counter" style="display: none;">
+//-----------------------------------------------------
+// Design Name : up_down_counter
+// File Name   : up_down_counter.v
+// Function    : Up down counter
+// Coder       : Deepak Kumar Tala
+//-----------------------------------------------------
+module up_down_counter    (
+out      ,  // Output of the counter
+up_down  ,  // up_down control for counter
+clk      ,  // clock input
+reset       // reset input
+);
+//----------Output Ports--------------
+output [7:0] out;
+//------------Input Ports--------------
+input up_down, clk, reset;
+//------------Internal Variables--------
+reg [7:0] out;
+//-------------Code Starts Here-------
+always @(posedge clk)
+if (reset) begin // active high reset
+  out <= 8'b0 ;
+end else if (up_down) begin
+  out <= out + 1;
+end else begin
+  out <= out - 1;
+end
+
+endmodule
+</div>
+<div id="container">
+<select id="exampleSelector" onchange="changeExample(this)">
+  <option value="up3down5">up3down5</option>
+  <option value="up_down_counter">up_down_counter</option>
+</select>
+<div id="editor"></div>
+<div id="controls">
+<input type="button" value="Show me!" onclick="synthesizeVerilog()" \>
+</div>
+<div id="viewerContainer">
+<svg id="viewer">
+</svg>
+</div>
+</div>
+
+<script src="ace/ace.js" type="text/javascript" charset="utf-8"></script>
+<script type="text/javascript" src="yosysjs.js"></script>
+<script type="text/javascript" src="d3.min.js" charset="utf-8"></script>
+<script type="text/javascript" src="splitjoins.js" charset="utf-8"></script>
+<script type="text/javascript" src="klay.js" charset="utf-8"></script>
+<script type="text/javascript" src="kfinal.js" charset="utf-8"></script>
+
+<script>
+function htmlDecode(input)
+{
+  var doc = new DOMParser().parseFromString(input, "text/html");
+  return doc.documentElement.textContent;
+}
+    var ys = YosysJS.create_worker(on_ys_ready);
+    ys.verbose(true);
+    var editor = ace.edit("editor");
+    var aceRange = ace.require('ace/range').Range;
+    editor.setTheme("ace/theme/monokai");
+    editor.getSession().setMode("ace/mode/verilog");
+    function changeExample(combo) {
+        var example = combo.value;
+        editor.setValue(htmlDecode(document.getElementById(example).innerHTML));
+        editor.getSelection().clearSelection();
+    }
+    changeExample(document.getElementById('exampleSelector'));
+
+</script>
+</body>
+</html>
