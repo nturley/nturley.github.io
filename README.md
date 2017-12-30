@@ -1,2 +1,1 @@
-# yod3.github.io
-digital logic netlist viewer
+Digital logic netlist viewer projects
