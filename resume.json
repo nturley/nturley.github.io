@@ -1,0 +1,92 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jsonresume/resume-schema/v1.0.0/schema.json",
+  "basics": {
+    "name": "Neil P Turley",
+    "email": "neilpturley@gmail.com",
+    "phone": "(801) 854-8659",
+    "location": {
+      "address": "2011 Cyclone Ridge Cove",
+      "postalCode": "78665",
+      "city": "Round Rock",
+      "countryCode": "US",
+      "region": "Texas"
+    },
+    "profiles": [
+      {
+        "network": "Github",
+        "username": "nturley",
+        "url": "https://github.com/nturley"
+      }
+    ]
+  },
+  "work": [
+    {
+      "company": "McCoy Global Inc",
+      "name": "McCoy Global Inc",
+      "position": "Lead Software Engineer",
+      "startDate": "2019-11",
+      "highlights": [
+        "Maintained embedded microcontroller firmware (C)",
+        "Developed Data Acquisition/Reporting Software for Pipe Drilling Sensors (LabVIEW)",
+        "Managed AWS resources and build pipeline infrastructure as code (Terraform, CloudFormation)",
+        "Implemented HTTP API endpoints that accessed database (C#, DynamoDB, AWS)",
+        "Added frontend features to web application (Angular, Typescript)",
+        "Wrote API specification and validation framework for HTTP/WS/MQTT API (OpenAPI, AsyncAPI)",
+        "Worked with PM to develop software development processes (planning, sprints, test periods, releases)",
+        "Created manual test procedures and authored manual tests for desktop application",
+        "Set up automated build/test CI system for desktop application"
+      ]
+    },
+    {
+      "company": "National Instruments, RIO Software",
+      "position": "Staff Software Engineer",
+      "startDate": "2014-01",
+      "endDate": "2019-11",
+      "highlights": [
+        "Wrote FPGA System Integration for Five RIO Product Lines (LabVIEW, VHDL)",
+        "Worked on Electron-based Automotive Database Editor (Typescript, React)",
+        "Created a Test Result Analysis Framework (Python)",
+        "Designed and Implemented Test Automation Frameworks (Python)",
+        "Designed and Implemented a High Speed Data Transfer API (LabVIEW, VHDL, C++)",
+        "Ported LabVIEW FPGA RIO Driver to Zynq Platform (C++)",
+        "Proposed and Developed Hardward Anti-Cloning Mechanisms (VHDL, C++)",
+        "Implemented CLIP Generation Utitility (C#, LabVIEW)",
+        "Presented a Technical Session at NI Week 2017"
+      ]
+    },
+    {
+      "company": "BYU Physics Department, Nuclear Research Group",
+      "position": "Lab Assistant",
+      "startDate": "2010-10",
+      "endDate": "2013-06",
+      "highlights": [
+        "Writing Data Acquisition Software (C#, C)",
+        "Designing Digital Circuits and Layout (Mentor Graphics)",
+        "Assisting Professors and Students to Collect and Analyze Meaningful Data (MATLAB)"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Brigham Young University",
+      "url": "https://www.byu.edu/",
+      "area": "Computer Engineering",
+      "studyType": "Bachelor",
+      "startDate": "2008",
+      "endDate": "2014",
+      "courses": [
+        "Computer Architecture",
+        "Real-Time Operating Systems",
+        "Operating Systems",
+        "Embedded Systems",
+        "Applied Cryptography"
+      ]
+    }
+  ],
+  "meta": {
+    "theme": "onepage",
+    "canonical": "https://raw.githubusercontent.com/jsonresume/resume-schema/master/resume.json",
+    "version": "v1.0.0",
+    "lastModified": "2017-12-24T15:53:00"
+  }
+}
