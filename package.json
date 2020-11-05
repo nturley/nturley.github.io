@@ -1,0 +1,11 @@
+{
+  "name": "nturley-resume",
+  "private": true,
+  "scripts": {
+    "build": "resume export index.html -t onepage"
+  },
+  "dependencies": {
+    "jsonresume-theme-onepage": "0.0.3",
+    "resume-cli": "^2.0.0"
+  }
+}

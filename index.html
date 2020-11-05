@@ -1,191 +1,307 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-<title>YosysJS Diagrams</title>
-<style type="text/css" media="screen">
-    body {
-        background-color: #363733;
-    }
-    #editor { 
-        display: block;
-        margin: auto;
-        width: 100%;
-        height: 500px;
-        border: 2px solid #161713;
-    }
-    #container {
-        margin:auto;
-        width: 800px;
-    }
-    #controls {
-        text-align: center;
-        margin-top: 10px;
-        margin-bottom: 10px;
-    }
-    #viewerContainer {
-        text-align: center;
-        overflow: auto;
-    }
-    #viewer {
-        background-color: #eee;
-        border: 2px solid #161713;
-    }
-    .selection
-    {
-        position:absolute;
-        background:rgba(100,100,200,0.5);
-    }
-    .nodeBody
-    {
-       stroke:#000;
-       fill-opacity:0;
-    }
-    .splitBody
-    {
-       stroke:#000;
+	<head>
 
-    }
-    .guideBody
-    {
-       stroke:#000;
-       stroke-dasharray: 5 5;
-       fill-opacity:0;
-    }
-    .portStem
-    {
-       stroke:#000;
-    }
-    .symbol
-    {
-       stroke:#000;
-       stroke-width:2;
-       fill-opacity:0;
-    }
-    text
-    {
-        font-size: 10px;
-    }
-    .inPortLabel
-    {
-        text-anchor: end;
-    }
-    .nodeLabel
-    {
-        text-anchor: middle;
-    }
-    .net
-    {
-        stroke:#000;
-    }
-</style>
-</head>
-<body>
-<div id="up3down5" style="display: none;">
-// borrowed with some modifications from
-// http://www.ee.ed.ac.uk/~gerard/Teach/Verilog/manual/Example/lrgeEx2/cooley.html
-module up3down5(clock, data_in, up, down, carry_out, borrow_out, count_out, parity_out);
+	<meta charset='utf-8'>
+	<meta name='viewport' content='width=device-width, user-scalable=no, minimal-ui'>
 
-input [8:0] data_in;
-input clock, up, down;
+	<title>Neil P Turley</title>
 
-output reg [8:0] count_out;
-output reg carry_out, borrow_out, parity_out;
-
-reg [9:0] cnt_up, cnt_dn;
-reg [8:0] count_nxt;
-
-always @(posedge clock)
-begin
-    cnt_dn = count_out - 3'b 101;
-    cnt_up = count_out + 2'b 11;
-
-    case ({up,down})
-        2'b 00 : count_nxt = data_in;
-        2'b 01 : count_nxt = cnt_dn;
-        2'b 10 : count_nxt = cnt_up;
-        2'b 11 : count_nxt = count_out;
-        default : count_nxt = 9'bX;
-    endcase
-
-    parity_out  <= ^count_nxt;
-    carry_out   <= up & cnt_up[9];
-    borrow_out  <= down & cnt_dn[9];
-    count_out   <= count_nxt;
-end
-
-endmodule
-</div>
-<div id="up_down_counter" style="display: none;">
-//-----------------------------------------------------
-// Design Name : up_down_counter
-// File Name   : up_down_counter.v
-// Function    : Up down counter
-// Coder       : Deepak Kumar Tala
-//-----------------------------------------------------
-module up_down_counter    (
-out      ,  // Output of the counter
-up_down  ,  // up_down control for counter
-clk      ,  // clock input
-reset       // reset input
-);
-//----------Output Ports--------------
-output [7:0] out;
-//------------Input Ports-------------- 
-input up_down, clk, reset;
-//------------Internal Variables--------
-reg [7:0] out;
-//-------------Code Starts Here-------
-always @(posedge clk)
-if (reset) begin // active high reset
-  out <= 8'b0 ;
-end else if (up_down) begin
-  out <= out + 1;
-end else begin
-  out <= out - 1;
-end
-
-endmodule 
-</div>
-<div id="container">
-<select id="exampleSelector" onchange="changeExample(this)">
-  <option value="up3down5">up3down5</option>
-  <option value="up_down_counter">up_down_counter</option>
-</select>
-<div id="editor"></div>
-<div id="controls">
-<input type="button" value="Show me!" onclick="synthesizeVerilog()" \>
-</div>
-<div id="viewerContainer">
-<svg id="viewer">
-</svg>
-</div>
-</div>
-    
-<script src="ace/ace.js" type="text/javascript" charset="utf-8"></script>
-<script type="text/javascript" src="yosysjs.js"></script>
-<script type="text/javascript" src="d3.min.js" charset="utf-8"></script>
-<script type="text/javascript" src="splitjoins.js" charset="utf-8"></script>
-<script type="text/javascript" src="final.js" charset="utf-8"></script>
-
-<script>
-function htmlDecode(input)
-{
-  var doc = new DOMParser().parseFromString(input, "text/html");
-  return doc.documentElement.textContent;
+	<style>
+	body {
+  background: #EEEEEE;
+  font: 12px "Times New Roman", Times, sans-serif;
+  line-height: 1.4;
+  margin: 40px 0;
 }
-    var ys = YosysJS.create_worker(on_ys_ready);
-    ys.verbose(true);
-    var editor = ace.edit("editor");
-    var aceRange = ace.require('ace/range').Range;
-    editor.setTheme("ace/theme/monokai");
-    editor.getSession().setMode("ace/mode/verilog");
-    function changeExample(combo) {
-        var example = combo.value;
-        editor.setValue(htmlDecode(document.getElementById(example).innerHTML));
-        editor.getSelection().clearSelection();
-    }
-    changeExample(document.getElementById('exampleSelector'));
+em {
+  color: #999;
+}
+p {
+  line-height: 1.4;
+}
+ul {
+  margin-bottom: 0;
+}
+li {
+  margin-bottom: 2px;
+}
+a {
+  text-decoration: none;
+}
 
-</script>
-</body>
+#resume {
+  margin: 0 auto;
+  max-width: 600px;
+  padding: 80px 100px;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 4px #aaa;
+  -webkit-box-shadow: 2px 2px 4px #aaa;
+}
+
+.coursesList {
+  width: 28%;
+  vertical-align: top;
+  display: inline-block;
+}
+
+.largeFont {
+  font-size: 20px;
+}
+
+.smallFont {
+  font-size: 12px;
+}
+
+.sectionBlock {
+  display: flex;
+  width: 100%;
+}
+
+.sectionName {
+  width: 18%;
+  vertical-align: top;
+  display: inline-block;
+}
+
+.sectionContent {
+  width: 80%;
+  vertical-align: top;
+  display: inline-block;
+}
+
+.sectionContent ul {
+  padding-left: 20px;
+  margin-top: 6px;
+  list-style-type: circle;
+}
+
+.sectionContent .title {
+  font-weight: bold;
+}
+
+.sectionContent .date {
+  float: right;
+}
+
+.sectionContent .separator {
+  height: 14px;
+}
+
+.sectionLine {
+  border-style: dashed;
+  border-width: 1px;
+  border-color: #CFCFCF;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.divider {
+  font-weight: bold;
+  margin-left: 5px;
+  margin-right: 5px;
+}
+
+.summary {
+  margin-top: 6px;
+}
+
+.skillBlock {
+  margin-bottom: 4px;
+}
+
+.jobBlock {
+  page-break-inside: avoid;
+}
+
+/* Media Queries */
+@media only screen and (max-width: 40em) {
+  body {
+    margin: 0;
+    font-size: 14px;
+  }
+  #resume {
+    margin: 0 auto;
+    max-width: 600px;
+    padding: 0.5em 1em;
+    border: none;
+  }
+  .sectionContent {
+    width: 100%;
+  }
+  .sectionContent .date {
+    padding-right: 2em;
+  }
+  .sectionName {
+    width: auto;
+  }
+  .largeFont {
+    font-size: 20px;
+  }
+  .smallFont {
+    font-size: 14px;
+  }
+}
+
+@media print {
+  #resume {
+    margin: 0 auto;
+    max-width: 600px;
+    padding: 0px 0px;
+    border: 0px;
+    background: #fff;
+    box-shadow: none;
+    -webkit-box-shadow: none;
+  }
+
+  a {
+    color: black;
+  }
+}
+
+	</style>
+
+	</head>
+	<body>
+
+	<div id='resume'>
+  <div id='nameBlock' class='largeFont'>
+    <span class='name'>
+      Neil P Turley
+    </span>
+  </div>
+  <div id='basicsBlock' class='smallFont'>
+    <div class='contactBlock'>
+      <span class='email'>neilpturley@gmail.com</span>
+      <span class='divider'>|</span>
+      <span class='phone'>(801) 854-8659</span>
+        <span class='divider'>|</span>
+        <span class='address'>
+          Round Rock, Texas, US
+        </span>
+    </div>
+      <div id='profilesBlock'>
+            <span class='url'>
+              <a href='https://github.com/nturley'>https://github.com/nturley</a>
+            </span>
+            
+      </div>
+  </div>
+  <div class='sectionLine'></div>
+
+
+  <div id='workBlock' class="sectionBlock">
+    <div class='sectionName'>
+      <span>EXPERIENCE</span>
+    </div>
+    <div class='sectionContent'>
+			<div class="jobBlock">
+	      <div class='blockHeader'>
+	        <span class='title'>
+	          McCoy Global Inc, Lead Software Engineer
+	        </span>
+	        <span class='date'>
+	          2019-11 &mdash; Present
+	        </span>
+	      </div>
+	      <div><a href=''></a></div>
+	      <ul class='highlights'>
+	        <li>Maintained embedded microcontroller firmware (C)</li>
+	        <li>Developed Data Acquisition/Reporting Software for Pipe Drilling Sensors (LabVIEW)</li>
+	        <li>Managed AWS resources and build pipeline infrastructure as code (Terraform, CloudFormation)</li>
+	        <li>Implemented HTTP API endpoints that accessed database (C#, DynamoDB, AWS)</li>
+	        <li>Added frontend features to web application (Angular, Typescript)</li>
+	        <li>Wrote API specification and validation framework for HTTP/WS/MQTT API (OpenAPI, AsyncAPI)</li>
+	        <li>Worked with PM to develop software development processes (planning, sprints, test periods, releases)</li>
+	        <li>Created manual test procedures and authored manual tests for desktop application</li>
+	        <li>Set up automated build/test CI system for desktop application</li>
+	      </ul>
+	      <div class='separator'></div>
+			</div>
+			<div class="jobBlock">
+	      <div class='blockHeader'>
+	        <span class='title'>
+	          National Instruments, RIO Software, Staff Software Engineer
+	        </span>
+	        <span class='date'>
+	          2014-01 &mdash; 2019-11
+	        </span>
+	      </div>
+	      <div><a href=''></a></div>
+	      <ul class='highlights'>
+	        <li>Wrote FPGA System Integration for Five RIO Product Lines (LabVIEW, VHDL)</li>
+	        <li>Worked on Electron-based Automotive Database Editor (Typescript, React)</li>
+	        <li>Created a Test Result Analysis Framework (Python)</li>
+	        <li>Designed and Implemented Test Automation Frameworks (Python)</li>
+	        <li>Designed and Implemented a High Speed Data Transfer API (LabVIEW, VHDL, C++)</li>
+	        <li>Ported LabVIEW FPGA RIO Driver to Zynq Platform (C++)</li>
+	        <li>Proposed and Developed Hardward Anti-Cloning Mechanisms (VHDL, C++)</li>
+	        <li>Implemented CLIP Generation Utitility (C#, LabVIEW)</li>
+	        <li>Presented a Technical Session at NI Week 2017</li>
+	      </ul>
+	      <div class='separator'></div>
+			</div>
+			<div class="jobBlock">
+	      <div class='blockHeader'>
+	        <span class='title'>
+	          BYU Physics Department, Nuclear Research Group, Lab Assistant
+	        </span>
+	        <span class='date'>
+	          2010-10 &mdash; 2013-06
+	        </span>
+	      </div>
+	      <div><a href=''></a></div>
+	      <ul class='highlights'>
+	        <li>Writing Data Acquisition Software (C#, C)</li>
+	        <li>Designing Digital Circuits and Layout (Mentor Graphics)</li>
+	        <li>Assisting Professors and Students to Collect and Analyze Meaningful Data (MATLAB)</li>
+	      </ul>
+	      
+			</div>
+    </div>
+  </div>
+  <div class='sectionLine'></div>
+
+
+
+
+	<div id='education' class="sectionBlock">
+    <div class='sectionName'>
+      <span>EDUCATION</span>
+    </div>
+    <div class='sectionContent'>
+      <div class='educationBlock'>
+        <span class='title'>
+          Brigham Young University
+        </span>
+        <span class='date'>
+          2008 &mdash; 2014
+        </span>
+        <div class=''>
+          Bachelor  - Computer Engineering
+        </div>
+        <div id='coursesBlock'>
+          <ul class='coursesList'>
+            <li class='course'>Computer Architecture</li>
+            <li class='course'>Embedded Systems</li>
+          </ul>
+          <ul class='coursesList'>
+            <li class='course'>Real-Time Operating Systems</li>
+            <li class='course'>Applied Cryptography</li>
+          </ul>
+          <ul class='coursesList'>
+            <li class='course'>Operating Systems</li>
+          </ul>
+        </div>
+      </div>
+      
+    </div>
+	</div>
+  <div class='sectionLine'></div>
+
+
+
+
+	</body>
 </html>

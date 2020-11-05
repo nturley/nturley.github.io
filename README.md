@@ -1,1 +1,3 @@
-Digital logic netlist viewer projects
+# Neil Turley Resume
+
+This uses JSON Resume
