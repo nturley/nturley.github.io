@@ -10,7 +10,7 @@
 	<style>
 	body {
   background: #EEEEEE;
-  font: 12px "Times New Roman", Times, sans-serif;
+  font: 13px "Times New Roman", Times, sans-serif;
   line-height: 1.4;
   margin: 40px 0;
 }
@@ -51,11 +51,12 @@ a {
 }
 
 .smallFont {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .sectionBlock {
   display: flex;
+  flex-wrap: wrap;
   width: 100%;
 }
 
@@ -131,6 +132,9 @@ a {
     padding: 0.5em 1em;
     border: none;
   }
+  .sectionBlock {
+    flex-direction: column;
+  }
   .sectionContent {
     width: 100%;
   }
@@ -146,9 +150,15 @@ a {
   .smallFont {
     font-size: 14px;
   }
+  .sectionName {
+    width: 100%;
+  }
 }
 
 @media print {
+  body {
+    background: #FFFFFF;
+  }
   #resume {
     margin: 0 auto;
     max-width: 600px;
