@@ -5,8 +5,6 @@
     "email": "neilpturley@gmail.com",
     "phone": "(801) 854-8659",
     "location": {
-      "address": "2011 Cyclone Ridge Cove",
-      "postalCode": "78665",
       "city": "Round Rock",
       "countryCode": "US",
       "region": "Texas"
@@ -31,8 +29,8 @@
         "Managed AWS resources and build pipeline infrastructure as code (Terraform, CloudFormation)",
         "Implemented HTTP API endpoints that accessed database (C#, DynamoDB, AWS)",
         "Added frontend features to web application (Angular, Typescript)",
-        "Wrote API specification and validation framework for HTTP/WS/MQTT API (OpenAPI, AsyncAPI)",
-        "Worked with PM to develop software development processes (planning, sprints, test periods, releases)",
+        "Wrote API specification and validation framework (OpenAPI, AsyncAPI)",
+        "Authored software development processes (e.g., planning, sprints, test periods, releases)",
         "Created manual test procedures and authored manual tests for desktop application",
         "Set up automated build/test CI system for desktop application"
       ]
@@ -76,10 +74,39 @@
       "endDate": "2014",
       "courses": [
         "Computer Architecture",
-        "Real-Time Operating Systems",
+        "Real-Time OSes",
         "Operating Systems",
         "Embedded Systems",
         "Applied Cryptography"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Sing Together Online",
+      "type": "application",
+      "highlights": [
+        "Virtual childrens choir web application",
+        "Manages song assignments and user submitted recordings",
+        "Buildless, client-only design using HTM, Preact, and Firebase"
+      ],
+      "url": "https://singtogether.online"
+    },
+    {
+      "name": "Latchup 2018: Netlistsvg",
+      "highlights":[
+        "Presented about schematic visualization software",
+        "Github repo has over 230 stars"
+      ],
+      "type": "presentation",
+      "url": "https://github.com/nturley/netlistsvg"
+    },
+    {
+      "name":"NIWeek 2017: Host Memory Buffer",
+      "type": "presentation",
+      "highlights": [
+        "Introduced a low latency DMA interface",
+        "How to optimize control loop determinism"
       ]
     }
   ],

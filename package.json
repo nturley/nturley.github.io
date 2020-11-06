@@ -5,7 +5,7 @@
     "build": "resume export index.html -t onepage"
   },
   "dependencies": {
-    "jsonresume-theme-onepage": "0.0.3",
+    "jsonresume-theme-onepage": "nturley/jsonresume-theme-onepage#master",
     "resume-cli": "^2.0.0"
   }
 }
