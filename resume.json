@@ -5,9 +5,9 @@
     "email": "neilpturley@gmail.com",
     "phone": "(801) 854-8659",
     "location": {
-      "city": "Round Rock",
+      "city": "South Jordan",
       "countryCode": "US",
-      "region": "Texas"
+      "region": "Utah"
     },
     "profiles": [
       {
@@ -19,20 +19,54 @@
   },
   "work": [
     {
+      "company": "Copia Automation",
+      "name": "Copia Automation",
+      "position": "Staff Engineer",
+      "startDate": "2026-08",
+      "highlights": [
+        "Reverse engineered three proprietary binary project file formats",
+        "Founded the company-wide technical architecture guild",
+        "Helped found the core applications team and onboarded its new members"
+      ]
+    },
+    {
+      "company": "Copia Automation",
+      "name": "Copia Automation",
+      "position": "Engineering Manager",
+      "startDate": "2022-10",
+      "endDate": "2026-08",
+      "highlights": [
+        "Led the team that delivered rendering for 15+ graphical IEC languages",
+        "Managed the source control team of up to 6 engineers",
+        "Created the team's strategy for AI-assisted development",
+        "Led research spikes on high-risk projects and guided the team through two reorgs",
+        "Partnered with product managers to plan the product roadmap",
+        "Ran standups, retros, sprints, engineering meetings, on-call, and technical interviews"
+      ]
+    },
+    {
+      "company": "Copia Automation",
+      "name": "Copia Automation",
+      "position": "Software Engineer",
+      "startDate": "2021-02",
+      "endDate": "2022-10",
+      "highlights": [
+        "Joined pre-revenue as the 4th employee; company has since grown past $10M ARR",
+        "Implemented conversion and initial rendering for Siemens TIA Portal and Codesys",
+        "Launched the initial Copia Desktop product"
+      ]
+    },
+    {
       "company": "McCoy Global Inc",
       "name": "McCoy Global Inc",
       "position": "Lead Software Engineer",
       "startDate": "2019-11",
+      "endDate": "2021-02",
       "highlights": [
         "Maintained embedded microcontroller firmware (C)",
         "Developed Data Acquisition/Reporting Software for Pipe Drilling Sensors (LabVIEW)",
-        "Managed AWS resources and build pipeline infrastructure as code (Terraform, CloudFormation)",
-        "Implemented HTTP API endpoints that accessed database (C#, DynamoDB, AWS)",
-        "Added frontend features to web application (Angular, Typescript)",
-        "Wrote API specification and validation framework (OpenAPI, AsyncAPI)",
-        "Authored software development processes (e.g., planning, sprints, test periods, releases)",
-        "Created manual test procedures and authored manual tests for desktop application",
-        "Set up automated build/test CI system for desktop application"
+        "Managed AWS resources and build pipelines as code (Terraform, CloudFormation)",
+        "Implemented HTTP API endpoints that accessed database (C#, DynamoDB, AWS)"
       ]
     },
     {
@@ -42,25 +76,19 @@
       "endDate": "2019-11",
       "highlights": [
         "Wrote FPGA System Integration for Five RIO Product Lines (LabVIEW, VHDL)",
-        "Worked on Electron-based Automotive Database Editor (Typescript, React)",
-        "Created a Test Result Analysis Framework (Python)",
-        "Designed and Implemented Test Automation Frameworks (Python)",
         "Designed and Implemented a High Speed Data Transfer API (LabVIEW, VHDL, C++)",
         "Ported LabVIEW FPGA RIO Driver to Zynq Platform (C++)",
-        "Proposed and Developed Hardward Anti-Cloning Mechanisms (VHDL, C++)",
-        "Implemented CLIP Generation Utitility (C#, LabVIEW)",
-        "Presented a Technical Session at NI Week 2017"
+        "Proposed and Developed Hardware Anti-Cloning Mechanisms (VHDL, C++)"
       ]
     },
     {
-      "company": "BYU Physics Department, Nuclear Research Group",
+      "company": "BYU Nuclear Physics Research Group",
       "position": "Lab Assistant",
       "startDate": "2010-10",
       "endDate": "2013-06",
       "highlights": [
         "Writing Data Acquisition Software (C#, C)",
-        "Designing Digital Circuits and Layout (Mentor Graphics)",
-        "Assisting Professors and Students to Collect and Analyze Meaningful Data (MATLAB)"
+        "Designing Digital Circuits and Layout (Mentor Graphics)"
       ]
     }
   ],
@@ -71,32 +99,14 @@
       "area": "Computer Engineering",
       "studyType": "Bachelor",
       "startDate": "2008",
-      "endDate": "2014",
-      "courses": [
-        "Computer Architecture",
-        "Real-Time OSes",
-        "Operating Systems",
-        "Embedded Systems",
-        "Applied Cryptography"
-      ]
+      "endDate": "2014"
     }
   ],
   "projects": [
     {
-      "name": "Sing Together Online",
-      "type": "application",
-      "highlights": [
-        "Virtual childrens choir web application",
-        "Manages song assignments and user submitted recordings",
-        "Buildless, client-only design using HTM, Preact, and Firebase"
-      ],
-      "url": "https://singtogether.online"
-    },
-    {
       "name": "Latchup 2018: Netlistsvg",
       "highlights":[
-        "Presented about schematic visualization software",
-        "Github repo has over 230 stars"
+        "Presented schematic visualization software; GitHub repo has 840+ stars"
       ],
       "type": "presentation",
       "url": "https://github.com/nturley/netlistsvg"
@@ -105,8 +115,7 @@
       "name":"NIWeek 2017: Host Memory Buffer",
       "type": "presentation",
       "highlights": [
-        "Introduced a low latency DMA interface",
-        "How to optimize control loop determinism"
+        "Introduced a low-latency DMA interface for optimizing control loop determinism"
       ]
     }
   ],

@@ -86,6 +86,19 @@ a {
   float: right;
 }
 
+.sectionContent .roles {
+  margin-top: 2px;
+}
+
+.sectionContent .role {
+  padding-left: 12px;
+  font-style: italic;
+}
+
+.sectionContent .role .date {
+  font-style: normal;
+}
+
 .sectionContent .separator {
   height: 14px;
 }
@@ -158,6 +171,7 @@ a {
 @media print {
   body {
     background: #FFFFFF;
+    margin: 0;
   }
   #resume {
     margin: 0 auto;
@@ -192,7 +206,7 @@ a {
       <span class='phone'>(801) 854-8659</span>
         <span class='divider'>|</span>
         <span class='address'>
-          Round Rock, Texas, US
+          South Jordan, Utah, US
         </span>
     </div>
       <div id='profilesBlock'>
@@ -213,23 +227,48 @@ a {
 			<div class="jobBlock">
 	      <div class='blockHeader'>
 	        <span class='title'>
+	          Copia Automation
+	        </span>
+	        <span class='date'>
+	          2021-02 &mdash; Present
+	        </span>
+	      </div>
+	      <div class='roles'>
+	        <div class='role'><span>Staff Engineer</span><span class='date'>2026-08 &mdash; Present</span></div>
+	        <div class='role'><span>Engineering Manager</span><span class='date'>2022-10 &mdash; 2026-08</span></div>
+	        <div class='role'><span>Software Engineer</span><span class='date'>2021-02 &mdash; 2022-10</span></div>
+	      </div>
+	      <ul class='highlights'>
+	        <li>Joined pre-revenue as the 4th employee; company has since grown past $10M ARR</li>
+	        <li>Led the team that delivered rendering for 15+ graphical IEC languages</li>
+	        <li>Implemented conversion and initial rendering for Siemens TIA Portal and Codesys</li>
+	        <li>Reverse engineered three proprietary binary project file formats</li>
+	        <li>Launched the initial Copia Desktop product</li>
+	        <li>Managed the source control team of up to 6 engineers</li>
+	        <li>Founded the company-wide technical architecture guild</li>
+	        <li>Created the team's strategy for AI-assisted development</li>
+	        <li>Led research spikes on high-risk projects and guided the team through two reorgs</li>
+	        <li>Partnered with product managers to plan the product roadmap</li>
+	        <li>Helped found the core applications team and onboarded its new members</li>
+	        <li>Ran standups, retros, sprints, engineering meetings, on-call, and technical interviews</li>
+	      </ul>
+	      <div class='separator'></div>
+			</div>
+			<div class="jobBlock">
+	      <div class='blockHeader'>
+	        <span class='title'>
 	          McCoy Global Inc - Lead Software Engineer
 	        </span>
 	        <span class='date'>
-	          2019-11 &mdash; Present
+	          2019-11 &mdash; 2021-02
 	        </span>
 	      </div>
 	      <div><a href=''></a></div>
 	      <ul class='highlights'>
 	        <li>Maintained embedded microcontroller firmware (C)</li>
 	        <li>Developed Data Acquisition/Reporting Software for Pipe Drilling Sensors (LabVIEW)</li>
-	        <li>Managed AWS resources and build pipeline infrastructure as code (Terraform, CloudFormation)</li>
+	        <li>Managed AWS resources and build pipelines as code (Terraform, CloudFormation)</li>
 	        <li>Implemented HTTP API endpoints that accessed database (C#, DynamoDB, AWS)</li>
-	        <li>Added frontend features to web application (Angular, Typescript)</li>
-	        <li>Wrote API specification and validation framework (OpenAPI, AsyncAPI)</li>
-	        <li>Authored software development processes (e.g., planning, sprints, test periods, releases)</li>
-	        <li>Created manual test procedures and authored manual tests for desktop application</li>
-	        <li>Set up automated build/test CI system for desktop application</li>
 	      </ul>
 	      <div class='separator'></div>
 			</div>
@@ -245,21 +284,16 @@ a {
 	      <div><a href=''></a></div>
 	      <ul class='highlights'>
 	        <li>Wrote FPGA System Integration for Five RIO Product Lines (LabVIEW, VHDL)</li>
-	        <li>Worked on Electron-based Automotive Database Editor (Typescript, React)</li>
-	        <li>Created a Test Result Analysis Framework (Python)</li>
-	        <li>Designed and Implemented Test Automation Frameworks (Python)</li>
 	        <li>Designed and Implemented a High Speed Data Transfer API (LabVIEW, VHDL, C++)</li>
 	        <li>Ported LabVIEW FPGA RIO Driver to Zynq Platform (C++)</li>
-	        <li>Proposed and Developed Hardward Anti-Cloning Mechanisms (VHDL, C++)</li>
-	        <li>Implemented CLIP Generation Utitility (C#, LabVIEW)</li>
-	        <li>Presented a Technical Session at NI Week 2017</li>
+	        <li>Proposed and Developed Hardware Anti-Cloning Mechanisms (VHDL, C++)</li>
 	      </ul>
 	      <div class='separator'></div>
 			</div>
 			<div class="jobBlock">
 	      <div class='blockHeader'>
 	        <span class='title'>
-	          BYU Physics Department, Nuclear Research Group - Lab Assistant
+	          BYU Nuclear Physics Research Group - Lab Assistant
 	        </span>
 	        <span class='date'>
 	          2010-10 &mdash; 2013-06
@@ -269,7 +303,6 @@ a {
 	      <ul class='highlights'>
 	        <li>Writing Data Acquisition Software (C#, C)</li>
 	        <li>Designing Digital Circuits and Layout (Mentor Graphics)</li>
-	        <li>Assisting Professors and Students to Collect and Analyze Meaningful Data (MATLAB)</li>
 	      </ul>
 	      
 			</div>
@@ -295,19 +328,6 @@ a {
         <div class=''>
           Bachelor  - Computer Engineering
         </div>
-        <div id='coursesBlock'>
-          <ul class='coursesList'>
-            <li class='course'>Computer Architecture</li>
-            <li class='course'>Embedded Systems</li>
-          </ul>
-          <ul class='coursesList'>
-            <li class='course'>Real-Time OSes</li>
-            <li class='course'>Applied Cryptography</li>
-          </ul>
-          <ul class='coursesList'>
-            <li class='course'>Operating Systems</li>
-          </ul>
-        </div>
       </div>
       
     </div>
@@ -320,23 +340,11 @@ a {
     </div>
     <div class='sectionContent'>
       <div class='projectsBlock'>
-        <span class='title'>Sing Together Online</span>
-        <a class="projectUrl" href="https://singtogether.online">(https://singtogether.online)</a>
-        <div id='highlightsBlock'>
-          <ul class='highlightsList'>
-            <li class='highlight'>Virtual childrens choir web application</li>
-            <li class='highlight'>Manages song assignments and user submitted recordings</li>
-            <li class='highlight'>Buildless, client-only design using HTM, Preact, and Firebase</li>
-          </ul>
-        </div>
-      </div>
-      <div class='projectsBlock'>
         <span class='title'>Latchup 2018: Netlistsvg</span>
         <a class="projectUrl" href="https://github.com/nturley/netlistsvg">(https://github.com/nturley/netlistsvg)</a>
         <div id='highlightsBlock'>
           <ul class='highlightsList'>
-            <li class='highlight'>Presented about schematic visualization software</li>
-            <li class='highlight'>Github repo has over 230 stars</li>
+            <li class='highlight'>Presented schematic visualization software; GitHub repo has 840+ stars</li>
           </ul>
         </div>
       </div>
@@ -345,17 +353,12 @@ a {
         
         <div id='highlightsBlock'>
           <ul class='highlightsList'>
-            <li class='highlight'>Introduced a low latency DMA interface</li>
-            <li class='highlight'>How to optimize control loop determinism</li>
+            <li class='highlight'>Introduced a low-latency DMA interface for optimizing control loop determinism</li>
           </ul>
         </div>
       </div>
     </div>
 	</div>
-  <div class='sectionLine'></div>
-
-
-
 
 	</body>
 </html>
